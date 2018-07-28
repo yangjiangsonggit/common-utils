@@ -541,3 +541,428 @@
             };
         }
     }
+    
+## 27.3.2 Servlet上下文初始化
+  
+    内嵌servlet容器不会直接执行Servlet 3.0+的`javax.servlet.ServletContainerInitializer`接口，
+    或Spring的`org.springframework.web.WebApplicationInitializer`接口，这样设计的目的是降低war包内运行的第三方库
+    破坏Spring Boot应用的风险。
+    
+    如果需要在Spring Boot应用中执行servlet上下文初始化，你需要注册一个实现`org.springframework.boot.context.embedded
+    .ServletContextInitializer`接口的bean。`onStartup`方法可以获取`ServletContext`，如果需要的话可以轻松用来适配一个
+    已存在的`WebApplicationInitializer`。
+    
+    **扫描Servlets, Filters和listeners**
+    
+    当使用一个内嵌容器时，通过`@ServletComponentScan`可以启用对注解`@WebServlet`，`@WebFilter`和`@WebListener`类的自动注册。
+    
+    **注** 在独立的容器（非内嵌）中`@ServletComponentScan`不起作用，取为代之的是容器内建的discovery机制。
+    
+## 27.3.3 EmbeddedWebApplicationContext
+
+    Spring Boot底层使用一种新的`ApplicationContext`类型，用于对内嵌servlet容器的支持。`EmbeddedWebApplicationContext`
+    是一种特殊类型的`WebApplicationContext`，它通过搜索到的单个`EmbeddedServletContainerFactory` bean来启动自己，通常
+    `TomcatEmbeddedServletContainerFactory`，`JettyEmbeddedServletContainerFactory`或`UndertowEmbeddedServletContainerFactory`将被自动配置。
+    
+    **注** 你不需要关心这些实现类，大部分应用都能被自动配置，并根据你的行为创建合适的`ApplicationContext`和`EmbeddedServletContainerFactory`。
+    
+    
+## 27.3.4 自定义内嵌servlet容器
+
+    常见的Servlet容器配置可以通过Spring `Environment`进行设置，通常将这些属性定义到`application.properties`文件中。
+    
+    常见的服务器配置包括：
+    
+    1. 网络设置：监听进入Http请求的端口（`server.port`），接口绑定地址`server.address`等。
+    2. Session设置：session是否持久化（`server.session.persistence`），session超时时间（`server.session.timeout`），
+    session数据存放位置（`server.session.store-dir`），session-cookie配置（`server.session.cookie.*`）。
+    3. Error管理：错误页面的位置（`server.error.path`）等。
+    4. [SSL](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/#howto-configure-ssl)。
+    5. [HTTP压缩](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/#how-to-enable-http-response-compression)
+    
+    Spring Boot会尽量暴露常用设置，但这并不总是可能的。对于不可能的情况，可以使用专用的命名空间提供server-specific配置
+    （查看`server.tomcat`，`server.undertow`）。例如，可以根据内嵌servlet容器的特性对[access logs](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/#howto-configure-accesslogs)进行不同的设置。
+    
+    **注** 具体参考[ServerProperties](https://github.com/spring-projects/spring-boot/tree/v1.4.1.RELEASE/
+    spring-boot-autoconfigure/src/main/java/org/springframework/boot/autoconfigure/web/ServerProperties.java)。
+    
+    **编程方式的自定义**
+    
+    如果需要以编程方式配置内嵌servlet容器，你可以注册一个实现`EmbeddedServletContainerCustomizer`接口的Spring bean。
+    `EmbeddedServletContainerCustomizer`能够获取到包含很多自定义setter方法的`ConfigurableEmbeddedServletContainer`，
+    你可以通过这些setter方法对内嵌容器自定义。
+    
+    ```java
+    import org.springframework.boot.context.embedded.*;
+    import org.springframework.stereotype.Component;
+    
+    @Component
+    public class CustomizationBean implements EmbeddedServletContainerCustomizer {
+        @Override
+        public void customize(ConfigurableEmbeddedServletContainer container) {
+            container.setPort(9000);
+        }
+    }
+    ```
+    
+    **直接自定义ConfigurableEmbeddedServletContainer**
+    
+    如果以上自定义手法过于受限，你可以自己注册`TomcatEmbeddedServletContainerFactory`，`JettyEmbeddedServletContainerFactory`
+    或`UndertowEmbeddedServletContainerFactory`。
+    
+    ```java
+    @Bean
+    public EmbeddedServletContainerFactory servletContainer() {
+        TomcatEmbeddedServletContainerFactory factory = new TomcatEmbeddedServletContainerFactory();
+        factory.setPort(9000);
+        factory.setSessionTimeout(10, TimeUnit.MINUTES);
+        factory.addErrorPages(new ErrorPage(HttpStatus.NOT_FOUND, "/notfound.html");
+        return factory;
+    }
+    ```
+    很多配置选项提供setter方法，有的甚至提供一些受保护的钩子方法以满足你的某些特殊需求，具体参考源码或相关文档。
+    
+    
+### 28. 安全
+    
+    如果添加了Spring Security的依赖，那么web应用默认对所有的HTTP路径（也称为终点，端点，表示API的具体网址）使用'basic'认证。
+    为了给web应用添加方法级别（method-level）的保护，你可以添加`@EnableGlobalMethodSecurity`并使用想要的设置，其他信息参考
+    [Spring Security Reference](http://docs.spring.io/spring-security/site/docs/4.1.3.RELEASE/reference/htmlsingle#jc-method)。
+    
+    默认的`AuthenticationManager`只有一个用户（'user'的用户名和随机密码会在应用启动时以INFO日志级别打印出来），如下：
+    ```java
+    Using default security password: 78fa095d-3f4c-48b1-ad50-e24c31d5cf35
+    ```
+    **注** 如果你对日志配置进行微调，确保`org.springframework.boot.autoconfigure.security`类别记录日志级别为`INFO`，
+    否则默认的密码不会打印出来。
+    
+    你可以通过设置`security.user.password`改变默认密码，这些和其他有用的属性通过[SecurityProperties](https://github.com/
+    spring-projects/spring-boot/tree/v1.4.1.RELEASE/spring-boot-autoconfigure/src/main/java/org/springframework/boot/
+    autoconfigure/security/SecurityProperties.java)（以"security"为前缀的属性）被外部化了。
+    
+    默认的安全配置是通过`SecurityAutoConfiguration`，`SpringBootWebSecurityConfiguration`（用于web安全），
+    `AuthenticationManagerConfiguration`（可用于非web应用的认证配置）进行管理的。你可以添加一个`@EnableWebSecurity` bean来彻底
+    关掉Spring Boot的默认配置。为了对它进行自定义，你需要使用外部的属性配置和`WebSecurityConfigurerAdapter`类型的beans（比如，添加基于表单的登陆）。
+    想要关闭认证管理的配置，你可以添加一个`AuthenticationManager`类型的bean，或在`@Configuration`类的某个方法里注入
+    `AuthenticationManagerBuilder`来配置全局的`AuthenticationManager`。这里有一些安全相关的[Spring Boot应用示例](https://github
+    .com/spring-projects/spring-boot/tree/v1.4.1.RELEASE/spring-boot-samples/)可以拿来参考。
+    
+    在web应用中你能得到的开箱即用的基本特性如下：
+    
+    1. 一个使用内存存储的`AuthenticationManager` bean和一个用户（查看`SecurityProperties.User`获取user的属性）。
+    2. 忽略（不保护）常见的静态资源路径（`/css/**, /js/**, /images/**`，`/webjars/**`和 `**/favicon.ico`）。
+    3. 对其他所有路径实施HTTP Basic安全保护。
+    4. 安全相关的事件会发布到Spring的`ApplicationEventPublisher`（成功和失败的认证，拒绝访问）。
+    5. Spring Security提供的常见底层特性（HSTS, XSS, CSRF, 缓存）默认都被开启。
+    
+    上述所有特性都能通过外部配置（`security.*`）打开，关闭，或修改。想要覆盖访问规则而不改变其他自动配置的特性，你可以添加一个注解
+    `@Order(SecurityProperties.ACCESS_OVERRIDE_ORDER)`的`WebSecurityConfigurerAdapter`类型的`@Bean`。
+    
+    **注** `WebSecurityConfigurerAdapter`默认会匹配所有路径，如果不想完全覆盖Spring Boot自动配置的访问规则，你可以精确的配置想要覆盖的路径。
+
+
+### 28.1.1 授权服务器
+
+    想要创建一个授权服务器，并授予access tokens，你需要使用`@EnableAuthorizationServer`，并提供`security.oauth2.client.client-id`
+    和`security.oauth2.client.client-secret`配置。
+    
+    按以上操作后，你就能使用客户端证书创建一个access token，例如：
+    ```shell
+    $ curl client:secret@localhost:8080/oauth/token -d grant_type=password -d username=user -d password=pwd
+    ```
+    `/token`端点basic形式的认证证书是`client-id`和`client-secret`，用户证书通常是Spring Security的user详情（Spring Boot中默认是
+    "user"和一个随机的密码）。
+    
+    想要关闭自动配置，自己配置授权服务器特性，你只需添加一个`AuthorizationServerConfigurer`类型的`@Bean`。
+    
+    
+### 28.1.2 资源服务器
+
+    为了使用access token，你需要一个资源服务器（可以跟授权服务器是同一个）。创建资源服务器很简单，只需要添加`@EnableResourceServer`，
+    提供一些配置以允许服务器解码access token。如果应用也是授权服务器，由于它知道如何去解码tokens，所以也就不需要做其他事情。如果你的app
+    是独立的服务，那你就需要给它添加以下可选配置中的某一项：
+    
+    * `security.oauth2.resource.user-info-uri`用于`/me`资源（例如，PWS的`https://uaa.run.pivotal.io/userinfo`）。
+    * `security.oauth2.resource.token-info-uri`用于token解码端点（例如，PWS的`https://uaa.run.pivotal.io/check_token`）。
+    
+    如果`user-info-uri`和`token-info-uri`都指定了，你可以设置flag筛选出最想要的那个（默认`prefer-token-info=true`）。
+    
+    另外，如果token是JWTs，你可以配置`security.oauth2.resource.jwt.key-value`解码它们（key是验签的key）。验签的键值可以是一个
+    对称密钥，也可以是PEM编码的RSA公钥。如果你没有key，并且它是公开的，你可以通过`security.oauth2.resource.jwt.key-uri`提供一个下载
+    URI（有一个"value"字段的JSON对象），例如，在PWS平台上：
+    ```
+    $ curl https://uaa.run.pivotal.io/token_key
+    {"alg":"SHA256withRSA","value":"-----BEGIN PUBLIC KEY-----\nMIIBI...\n-----END PUBLIC KEY-----\n"}
+    ```
+    **注** 如果你使用`security.oauth2.resource.jwt.key-uri`，授权服务器需要在应用启动时也运行起来，如果找不到key，它将输出warning，
+    并告诉你如何解决。
+    
+###28.1 OAuth2
+
+    如果添加了`spring-security-oauth2`依赖，你可以利用自动配置简化认证（Authorization）或资源服务器（Resource Server）的设置，
+    详情参考[Spring Security OAuth 2 Developers Guide](http://projects.spring.io/spring-security-oauth/docs/oauth2.html)。
+
+###28.2 User Info中的Token类型
+
+    Google和其他一些第三方身份（identity）提供商对发送给user info端点的请求头中设置的token类型名有严格要求。默认的`Bearer`满足大多数
+    提供商要求，如果需要你可以设置`security.oauth2.resource.token-type`来改变它。
+    
+### 28.3.1 客户端
+
+    为了将web-app放入一个OAuth2客户端，你只需注解`@EnableOAuth2Client`，Spring Boot会创建`OAuth2ClientContext`和`OAuth2ProtectedResourceDetails`，这些是创建`OAuth2RestOperations`必需的。Spring Boot不会自动创建该bean，但你自己创建也不费力：
+    ```java
+    @Bean
+    public OAuth2RestTemplate oauth2RestTemplate(OAuth2ClientContext oauth2ClientContext,
+            OAuth2ProtectedResourceDetails details) {
+        return new OAuth2RestTemplate(details, oauth2ClientContext);
+    }
+    ```
+    **注** 你可能想添加一个限定名（qualifier），因为应用中可能定义多个`RestTemplate`。
+    
+    该配置使用`security.oauth2.client.*`作为证书（跟授权服务器使用的相同），此外，它也需要知道授权服务器中认证和token的URIs，例如：
+    ```yml
+    security:
+        oauth2:
+            client:
+                clientId: bd1c0a783ccdd1c9b9e4
+                clientSecret: 1a9030fbca47a5b2c28e92f19050bb77824b5ad1
+                accessTokenUri: https://github.com/login/oauth/access_token
+                userAuthorizationUri: https://github.com/login/oauth/authorize
+                clientAuthenticationScheme: form
+    ```
+    具有该配置的应用在使用`OAuth2RestTemplate`时会重定向到GitHub以完成授权，如果已经登陆GitHub，你甚至不会注意到它已经授权过了。那些
+    特殊的凭证（credentials）只在应用运行于8080端口时有效（为了更灵活，在GitHub或其他提供商上注册自己的客户端app）。
+    
+    在客户端获取access token时，你可以设置`security.oauth2.client.scope`（逗号分隔或一个YAML数组）来限制它请求的作用域（scope）。
+    作用域默认是空的，默认值取决于授权服务器，通常依赖于它拥有的客户端在注册时的设置。
+    
+    **注** 对`security.oauth2.client.client-authentication-scheme`也有设置，默认为"header"（如果你的OAuth2提供商不喜欢header认证，
+    例如Github，你可能需要将它设置为“form”）。实际上，`security.oauth2.client.*`属性绑定到一个`AuthorizationCodeResourceDetails`
+    实例，所以它的所有属性都可以指定。
+    
+    **注** 在一个非web应用中，你仍旧可以创建一个`OAuth2RestOperations`，并且跟`security.oauth2.client.*`配置关联。在这种情况下，
+    它是一个“client credentials token grant”，如果你使用它的话就需要获取（此处不需要注解`@EnableOAuth2Client`或`@EnableOAuth2Sso`）
+    。为了防止基础设施定义，只需要将`security.oauth2.client.client-id`从配置中移除（或将它设为空字符串）。
+
+### 28.3.2 单点登陆
+
+    OAuth2客户端可用于从提供商抓取用户详情，然后转换为Spring Security需要的`Authentication` token。上述提到的资源服务器通过
+    `user-info-uri`属性来支持该功能，这是基于OAuth2的单点登陆（SSO）协议最基本的，Spring Boot提供的`@EnableOAuth2Sso`注解让它更
+    容易实践。通过添加该注解及端点配置（`security.oauth2.client.*`），Github客户端就可以使用`/user/`端点保护它的所有资源了：
+    ```yaml
+    security:
+        oauth2:
+    ...
+        resource:
+            userInfoUri: https://api.github.com/user
+            preferTokenInfo: false
+    ```
+    由于所有路径默认都处于保护下，也就没有主页展示那些未授权的用户，进而邀请他们去登陆（通过访问`/login`路径，或`security.oauth2.sso
+    .login-path`指定的路径）。
+    
+    为了自定义访问规则或保护的路径（这样你就可以添加主页），你可以将`@EnableOAuth2Sso`添加到一个`WebSecurityConfigurerAdapter`，
+    该注解会包装它，增强需要的地方以使`/login`路径工作。例如，这里我们允许未授权的用户访问主页`/`，其他的依旧保持默认：
+    ```java
+    @Configuration
+    public class WebSecurityConfiguration extends WebSecurityConfigurerAdapter {
+    
+        @Override
+        public void init(WebSecurity web) {
+            web.ignore("/");
+        }
+    
+        @Override
+        protected void configure(HttpSecurity http) throws Exception {
+            http.antMatcher("/**").authorizeRequests().anyRequest().authenticated();
+        }
+    
+    }
+    ```
+    
+### 28.3 自定义User Info RestTemplate
+
+    如果设置了`user-info-uri`，资源服务器在内部将使用一个`OAuth2RestTemplate`抓取用于认证的用户信息，这是一个id为
+    `userInfoRestTemplate`的`@Bean`提供的，但你不需要了解这些，只需要用它即可。默认适用于大多数提供商，但偶尔你可能需要添加其他
+    interceptors，或改变request的验证器（authenticator）。想要添加自定义，只需创建一个`UserInfoRestTemplateCustomizer`类型的
+    bean —— 它只有单个方法，在bean创建后，初始化前会调用该方法。此处自定义的rest template仅用于内部执行认证。
+    
+    **注** 在YAML中设置RSA key时，需要使用管道符分割多行（“|”），记得缩进key value，例如：
+    ```yaml
+    security:
+        oauth2:
+            resource:
+                jwt:
+                    keyValue: |
+                        -----BEGIN PUBLIC KEY-----
+                        MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKC...
+                        -----END PUBLIC KEY-----
+    ```
+    
+### 29.1. 配置DataSource
+ 
+    Java的`javax.sql.DataSource`接口提供了一个标准的使用数据库连接的方法。通常，DataSource使用`URL`和相应的凭证去初始化数据库连接。
+    
+### 29.1.1. 对内嵌数据库的支持
+
+    开发应用时使用内存数据库是很方便的。显然，内存数据库不提供持久化存储；你只需要在应用启动时填充数据库，在应用结束前预先清除数据。
+    
+    Spring Boot可以自动配置的内嵌数据库包括[H2](http://www.h2database.com/), [HSQL](http://hsqldb.org/)和[Derby](http://
+    db.apache.org/derby/)。你不需要提供任何连接URLs，只需要添加你想使用的内嵌数据库依赖。
+    
+    示例：典型的POM依赖如下：
+    ```xml
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.hsqldb</groupId>
+        <artifactId>hsqldb</artifactId>
+        <scope>runtime</scope>
+    </dependency>
+    ```
+    **注** 对于自动配置的内嵌数据库，你需要添加`spring-jdbc`依赖，在本示例中，`spring-boot-starter-data-jpa`已包含该依赖了。
+    
+    **注** 无论出于什么原因，你需要配置内嵌数据库的连接URL，一定要确保数据库的自动关闭是禁用的。如果使用H2，你需要设置
+    `DB_CLOSE_ON_EXIT=FALSE`。如果使用HSQLDB，你需要确保没使用`shutdown=true`。禁用数据库的自动关闭可以让Spring Boot控制何时
+    关闭数据库，因此在数据库不需要时可以确保关闭只发生一次。
+
+
+### 29.1.2. 连接生产环境数据库
+
+    生产环境的数据库连接可以通过池化的`DataSource`进行自动配置，下面是选取特定实现的算法：
+    
+    - 出于tomcat数据源连接池的优秀性能和并发，如果可用总会优先使用它。
+    - 如果HikariCP可用，我们将使用它。
+    - 如果Commons DBCP可用，我们将使用它，但生产环境不推荐。
+    - 最后，如果Commons DBCP2可用，我们将使用它。
+    
+    如果使用`spring-boot-starter-jdbc`或`spring-boot-starter-data-jpa` 'starters'，你会自动添加`tomcat-jdbc`依赖。
+    
+    **注** 通过指定`spring.datasource.type`属性，你可以完全抛弃该算法，然后指定数据库连接池。如果你在tomcat容器中运行应用，
+    由于默认提供`tomcat-jdbc`，这就很重要了。
+    
+    **注** 其他的连接池可以手动配置，如果你定义自己的`DataSource` bean，自动配置是不会发生的。
+    
+    DataSource配置被外部的`spring.datasource.*`属性控制，例如，你可能会在`application.properties`中声明以下片段：
+    ```java
+    spring.datasource.url=jdbc:mysql://localhost/test
+    spring.datasource.username=dbuser
+    spring.datasource.password=dbpass
+    spring.datasource.driver-class-name=com.mysql.jdbc.Driver
+    ```
+    **注** 你应该至少使用`spring.datasource.url`属性指定url，或Spring Boot尝试自动配置内嵌数据库。
+    
+    **注** 你经常不需要指定`driver-class-name`，因为Spring boot可以从`url`推断大部分数据库。
+    
+    **注** 对于将要创建的池化`DataSource`，我们需要验证是否有一个可用的`Driver`，所以在做其他事前会校验它。比如，如果你设置
+    `spring.datasource.driver-class-name=com.mysql.jdbc.Driver`，然后该class加载出来，否则就会出错。
+
+    其他可选配置可以查看[DataSourceProperties](https://github.com/spring-projects/spring-boot/tree/v1.4.1.RELEASE/
+    spring-boot-autoconfigure/src/main/java/org/springframework/boot/autoconfigure/jdbc/DataSourceProperties.java)，
+    有些标准配置是跟实现无关的，对于实现相关的配置可以通过相应前缀进行设置（`spring.datasource.tomcat.*`，`spring.datasource.hikari.*`，
+    `spring.datasource.dbcp.*`和`spring.datasource.dbcp2.*`），具体参考你使用的连接池文档。
+    
+    例如，如果正在使用[Tomcat连接池](http://tomcat.apache.org/tomcat-8.0-doc/jdbc-pool.html#Common_Attributes)，你可以自定义很多其他设置：
+    ```properties
+    # Number of ms to wait before throwing an exception if no connection is available.
+    spring.datasource.tomcat.max-wait=10000
+    
+    # Maximum number of active connections that can be allocated from this pool at the same time.
+    spring.datasource.tomcat.max-active=50
+    
+    # Validate the connection before borrowing it from the pool.
+    spring.datasource.tomcat.test-on-borrow=true
+    
+### 29.2. 使用JdbcTemplate
+
+    Spring的`JdbcTemplate`和`NamedParameterJdbcTemplate`类会被自动配置，你可以将它们直接`@Autowire`到自己的beans：
+    ```java
+    import org.springframework.beans.factory.annotation.Autowired;
+    import org.springframework.jdbc.core.JdbcTemplate;
+    import org.springframework.stereotype.Component;
+    
+    @Component
+    public class MyBean {
+    
+        private final JdbcTemplate jdbcTemplate;
+    
+        @Autowired
+        public MyBean(JdbcTemplate jdbcTemplate) {
+            this.jdbcTemplate = jdbcTemplate;
+        }
+        // ...
+    }
+
+### 29.3. JPA和Spring Data
+
+    Java持久化API是一个允许你将对象映射为关系数据库的标准技术，`spring-boot-starter-data-jpa` POM提供了一种快速上手的方式，它提供以下关键依赖：
+    
+    - Hibernate - 一个非常流行的JPA实现。
+    - Spring Data JPA - 让实现基于JPA的repositories更容易。
+    - Spring ORMs - Spring框架支持的核心ORM。
+    
+    **注** 我们不想在这涉及太多关于JPA或Spring Data的细节。你可以参考来自[spring.io](http://spring.io/)的指南[使用JPA获取数据]
+    (http://spring.io/guides/gs/accessing-data-jpa/)，并阅读[Spring Data JPA](http://projects.spring.io/spring-data-jpa/)
+    和[Hibernate](http://hibernate.org/orm/documentation/)的参考文档。
+    
+    **注** Spring Boot默认使用Hibernate 5.0.x，如果你希望的话也可以使用4.3.x或5.2.x，具体参考[Hibernate 4](https://github.com/
+    spring-projects/spring-boot/tree/v1.4.1.RELEASE/spring-boot-samples/spring-boot-sample-hibernate4)和[Hibernate 5.2]
+    (https://github.com/spring-projects/spring-boot/tree/v1.4.1.RELEASE/spring-boot-samples/spring-boot-sample-hibernate52)示例。
+
+### 29.3.1. 实体类
+
+    通常，JPA实体类被定义到一个`persistence.xml`文件，在Spring Boot中，这个文件被'实体扫描'取代。默认情况，Spring Boot会查找主配置类
+    （被`@EnableAutoConfiguration`或`@SpringBootApplication`注解的类）下的所有包。
+    
+    任何被`@Entity`，`@Embeddable`或`@MappedSuperclass`注解的类都将被考虑，一个普通的实体类看起来像这样：
+    ```java
+    package com.example.myapp.domain;
+    
+    import java.io.Serializable;
+    import javax.persistence.*;
+    
+    @Entity
+    public class City implements Serializable {
+    
+        @Id
+        @GeneratedValue
+        private Long id;
+    
+        @Column(nullable = false)
+        private String name;
+    
+        @Column(nullable = false)
+        private String state;
+    
+        // ... additional members, often include @OneToMany mappings
+    
+        protected City() {
+            // no-args constructor required by JPA spec
+            // this one is protected since it shouldn't be used directly
+        }
+    
+        public City(String name, String state) {
+            this.name = name;
+            this.country = country;
+        }
+    
+        public String getName() {
+            return this.name;
+        }
+    
+        public String getState() {
+            return this.state;
+        }
+        // ... etc
+    }
+    ```
+    **注** 你可以使用`@EntityScan`注解自定义实体扫描路径，具体参考[Section 74.4, “Separate @Entity definitions from Spring 
+    configuration”](../IX. ‘How-to’ guides/74.4. Separate @Entity definitions from Spring configuration.md)。
+    
+
+
+
+
+
+
