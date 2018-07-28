@@ -3,20 +3,15 @@ package com.yjs.commonutils.commonconfig;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.quartz.SchedulerFactoryBean;
-
 import javax.sql.DataSource;
 import java.util.Properties;
 
 /**
  * 定时任务配置
- * 
- * @author ruoyi
- *
  */
 @Configuration
 public class ScheduleConfig
 {
-
     @Bean
     public SchedulerFactoryBean schedulerFactoryBean(DataSource dataSource)
     {
@@ -25,7 +20,7 @@ public class ScheduleConfig
 
         // quartz参数
         Properties prop = new Properties();
-        prop.put("org.quartz.scheduler.instanceName", "RuoyiScheduler");
+        prop.put("org.quartz.scheduler.instanceName", "yjsScheduler");
         prop.put("org.quartz.scheduler.instanceId", "AUTO");
         // 线程池配置
         prop.put("org.quartz.threadPool.class", "org.quartz.simpl.SimpleThreadPool");
