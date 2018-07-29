@@ -960,9 +960,1321 @@
     **注** 你可以使用`@EntityScan`注解自定义实体扫描路径，具体参考[Section 74.4, “Separate @Entity definitions from Spring 
     configuration”](../IX. ‘How-to’ guides/74.4. Separate @Entity definitions from Spring configuration.md)。
     
+### 30. 使用NoSQL技术
+
+    Spring Data提供其他项目，用来帮你使用各种各样的NoSQL技术，包括[MongoDB](http://projects.spring.io/spring-data-mongodb/), 
+    [Neo4J](http://projects.spring.io/spring-data-neo4j/), [Elasticsearch](https://github.com/spring-projects/
+    spring-data-elasticsearch/), [Solr](http://projects.spring.io/spring-data-solr/), [Redis](http://projects.spring.io/
+    spring-data-redis/), [Gemfire](http://projects.spring.io/spring-data-gemfire/), [Couchbase](http://projects.spring.io/
+    spring-data-couchbase/)和[Cassandra](http://projects.spring.io/spring-data-cassandra/)。Spring Boot为Redis, MongoDB,
+     Elasticsearch, Solr和Cassandra提供自动配置。你也可以充分利用其他项目，但需要自己配置它们，具体查看[projects.spring.io/
+     spring-data](http://projects.spring.io/spring-data/)中相应的参考文档。
 
 
+### 30.1.1. 连接Redis
+
+    你可以注入一个自动配置的`RedisConnectionFactory`，`StringRedisTemplate`或普通的`RedisTemplate`实例，或任何其他Spring Bean
+    只要你愿意。默认情况下，这个实例将尝试使用`localhost:6379`连接Redis服务器：
+    ```java
+    @Component
+    public class MyBean {
+    
+        private StringRedisTemplate template;
+    
+        @Autowired
+        public MyBean(StringRedisTemplate template) {
+            this.template = template;
+        }
+        // ...
+    }
+    ```
+    如果你添加一个自己的，或任何自动配置类型的`@Bean`，它将替换默认实例（除了`RedisTemplate`的情况，它是根据`bean`的name 
+    'redisTemplate'而不是类型进行排除的）。如果在classpath路径下存在`commons-pool2`，默认你会获得一个连接池工厂。
 
 
+### 30.2.1. 连接MongoDB数据库
+
+    你可以注入一个自动配置的`org.springframework.data.mongodb.MongoDbFactory`来访问Mongo数据库。默认情况下，该实例将尝试使用
+    URL `mongodb://localhost/test`连接到MongoDB服务器：
+    ```java
+    import org.springframework.data.mongodb.MongoDbFactory;
+    import com.mongodb.DB;
+    
+    @Component
+    public class MyBean {
+    
+        private final MongoDbFactory mongo;
+    
+        @Autowired
+        public MyBean(MongoDbFactory mongo) {
+            this.mongo = mongo;
+        }
+    
+        // ...
+        public void example() {
+            DB db = mongo.getDb();
+            // ...
+        }
+    }
+    ```
+    你可以设置`spring.data.mongodb.uri`来改变该url，并配置其他的设置，比如副本集：
+    ```properties
+    spring.data.mongodb.uri=mongodb://user:secret@mongo1.example.com:12345,mongo2.example.com:23456/test
+    ```
+    另外，跟正在使用的Mongo 2.x一样，你可以指定`host`/`port`，比如，在`application.properties`中添加以下配置：
+    ```java
+    spring.data.mongodb.host=mongoserver
+    spring.data.mongodb.port=27017
+    ```
+    **注** Mongo 3.0 Java驱动不支持`spring.data.mongodb.host`和`spring.data.mongodb.port`，对于这种情况，
+    `spring.data.mongodb.uri`需要提供全部的配置信息。
+    
+    **注** 如果没有指定`spring.data.mongodb.port`，默认使用`27017`，上述示例中可以删除这行配置。
+    
+    **注** 如果不使用Spring Data Mongo，你可以注入`com.mongodb.Mongo beans`以代替`MongoDbFactory`。
+    
+    如果想完全控制MongoDB连接的建立过程，你可以声明自己的`MongoDbFactory`或`Mongo` bean。
+    如果想全面控制MongoDB连接的建立，你也可以声明自己的MongoDbFactory或Mongo，@Beans。
+    
+    
+### 30.2.2.  MongoDBTemplate
+
+    Spring Data Mongo提供了一个[MongoTemplate](http://docs.spring.io/spring-data/mongodb/docs/current/api/org/
+    springframework/data/mongodb/core/MongoTemplate.html)类，它的设计和Spring的`JdbcTemplate`很相似。跟`JdbcTemplate`一样，
+    Spring Boot会为你自动配置一个bean，你只需简单的注入即可：
+    ```java
+    import org.springframework.beans.factory.annotation.Autowired;
+    import org.springframework.data.mongodb.core.MongoTemplate;
+    import org.springframework.stereotype.Component;
+    
+    @Component
+    public class MyBean {
+    
+        private final MongoTemplate mongoTemplate;
+    
+        @Autowired
+        public MyBean(MongoTemplate mongoTemplate) {
+            this.mongoTemplate = mongoTemplate;
+        }
+        // ...
+    }
+    ```
+    具体参考`MongoOperations` Javadoc。
+    
+### 30.2.3. Spring Data MongoDB仓库
+
+    Spring Data包含的仓库也支持MongoDB，正如上面讨论的JPA仓库，基于方法名自动创建查询是基本的原则。
+    
+    实际上，不管是Spring Data JPA还是Spring Data MongoDB都共享相同的基础设施。所以你可以使用上面的JPA示例，并假设那个`City`现在是
+    一个Mongo数据类而不是JPA `@Entity`，它将以同样的方式工作：
+    ```java
+    package com.example.myapp.domain;
+    
+    import org.springframework.data.domain.*;
+    import org.springframework.data.repository.*;
+    
+    public interface CityRepository extends Repository<City, Long> {
+    
+        Page<City> findAll(Pageable pageable);
+    
+        City findByNameAndCountryAllIgnoringCase(String name, String country);
+    
+    }
+    ```
+    **注** 想详细了解Spring Data MongoDB，包括它丰富的对象映射技术，可以查看它的[参考文档](http://projects.spring.io/
+    spring-data-mongodb/)。
 
 
+### 30.2.4 内嵌的Mongo
+
+    Spring Boot为[内嵌Mongo](https://github.com/flapdoodle-oss/de.flapdoodle.embed.mongo)提供自动配置，你需要添加
+    `de.flapdoodle.embed:de.flapdoodle.embed.mongo`依赖才能使用它。
+    
+    `spring.data.mongodb.port`属性可用来配置Mongo监听的端口，将该属性值设为0，表示使用一个随机分配的可用端口。通过
+    `MongoAutoConfiguration`创建的`MongoClient`将自动配置为使用随机分配的端口。
+    
+    如果classpath下存在SLF4J依赖，Mongo产生的输出将自动路由到一个名为`org.springframework.boot.autoconfigure.mongo.embedded
+    .EmbeddedMongo`的logger。
+    
+    想要完全控制Mongo实例的配置和日志路由，你可以声明自己的`IMongodConfig`和`IRuntimeConfig` beans。
+    
+    
+### 30.5.1 连接Solr
+
+    你可以注入一个自动配置的`SolrClient`实例，就像其他Spring beans那样，该实例默认使用`localhost:8983/solr`连接Solr服务器：
+    ```java
+    @Component
+    public class MyBean {
+    
+        private SolrClient solr;
+    
+        @Autowired
+        public MyBean(SolrClient solr) {
+            this.solr = solr;
+        }
+    
+        // ...
+    
+    }
+    ```
+    如果你添加自己的`SolrClient`类型的`@Bean`，它将会替换默认实例。
+
+
+### 30.6.1 使用Jest连接Elasticsearch
+
+    如果添加`Jest`依赖，你可以注入一个自动配置的`JestClient`，默认目标为`http://localhost:9200/`，也可以进一步配置该客户端：
+    ```properties
+    spring.elasticsearch.jest.uris=http://search.example.com:9200
+    spring.elasticsearch.jest.read-timeout=10000
+    spring.elasticsearch.jest.username=user
+    spring.elasticsearch.jest.password=secret
+    ```
+    定义一个`JestClient` bean以完全控制注册过程。
+    
+### 30.6.2 使用Spring Data连接Elasticsearch
+
+    你可以注入一个自动配置的`ElasticsearchTemplate`或Elasticsearch `Client`实例，就想其他Spring Bean那样。
+    该实例默认内嵌一个本地，内存型服务器（在Elasticsearch中被称为`Node`），并使用当前工作目录作为服务器的home目录。在这个步骤中，
+    首先要做的是告诉Elasticsearch将文件存放到什么地方：
+    ```properties
+    spring.data.elasticsearch.properties.path.home=/foo/bar
+    ```
+    另外，你可以通过设置`spring.data.elasticsearch.cluster-nodes`（逗号分隔的‘host:port’列表）来切换为远程服务器：
+    ```properties
+    spring.data.elasticsearch.cluster-nodes=localhost:9300
+    ```
+    ```java
+    @Component
+    public class MyBean {
+    
+        private ElasticsearchTemplate template;
+    
+        @Autowired
+        public MyBean(ElasticsearchTemplate template) {
+            this.template = template;
+        }
+    
+        // ...
+    
+    }
+    ```
+    如果添加自己的`ElasticsearchTemplate`类型的`@Bean`，它将覆盖默认实例。
+    
+
+### 30.6.3 Spring Data Elasticseach仓库
+
+    Spring Data包含的仓库也支持Elasticsearch，正如前面讨论的JPA仓库，基于方法名自动创建查询是基本的原则。
+    
+    实际上，不管是Spring Data JPA还是Spring Data Elasticsearch都共享相同的基础设施。所以你可以使用前面的JPA示例，
+    并假设那个`City`现在是一个Elasticsearch `@Document`类而不是JPA `@Entity`，它将以同样的方式工作。
+    
+    **注** 具体参考[Spring Data Elasticsearch文档](http://docs.spring.io/spring-data/elasticsearch/docs/)。
+
+
+### 30.6 Elasticsearch
+
+    [Elastic Search](http://www.elasticsearch.org/)是一个开源的，分布式，实时搜索和分析引擎。Spring Boot为Elasticsearch
+    提供基本的自动配置，[Spring Data Elasticsearch](https://github.com/spring-projects/spring-data-elasticsearch)提供在它
+    之上的抽象，还有用于收集依赖的`spring-boot-starter-data-elasticsearch`'Starter'。
+
+###31.1.3 EhCache 2.x
+
+    如果在classpath下的根目录可以找到一个名为`ehcache.xml`的文件，则缓存将使用EhCache 2.x。如果EhCache 2.x和这样的文件出现，
+    那它们将用于启动缓存管理器，使用以下配置可提供替换的配置文件：
+    ```properties
+    spring.cache.ehcache.config=classpath:config/another-config.xml
+    ```
+
+###31.1.8 Caffeine
+
+    Caffeine是Java8对Guava缓存的重写版本，在Spring Boot 2.0中将取代Guava。如果出现Caffeine，`CaffeineCacheManager`将会自动配置。
+    使用`spring.cache.cache-names`属性可以在启动时创建缓存，并可以通过以下配置进行自定义（按顺序）：
+    
+    1. `spring.cache.caffeine.spec`定义的特殊缓存
+    2. `com.github.benmanes.caffeine.cache.CaffeineSpec` bean定义
+    3. `com.github.benmanes.caffeine.cache.Caffeine` bean定义
+    
+    例如，以下配置创建一个`foo`和`bar`缓存，最大数量为500，存活时间为10分钟：
+    ```properties
+    spring.cache.cache-names=foo,bar
+    spring.cache.caffeine.spec=maximumSize=500,expireAfterAccess=600s
+    ```
+    除此之外，如果定义了`com.github.benmanes.caffeine.cache.CacheLoader`，它会自动关联到`CaffeineCacheManager`。
+    由于该`CacheLoader`将关联被该缓存管理器管理的所有缓存，所以它必须定义为`CacheLoader<Object, Object>`，自动配置将忽略所有泛型类型。
+
+
+###31.1.9 Guava
+
+    如果存在Guava，`GuavaCacheManager`会自动配置。使用`spring.cache.cache-names`属性可以在启动时创建缓存，并通过以下方式之一自定义
+    （按此顺序）：
+    
+    1. `spring.cache.guava.spec`定义的特殊缓存
+    2. `com.google.common.cache.CacheBuilderSpec` bean定义的
+    3. `com.google.common.cache.CacheBuilder` bean定义的
+    
+    例如，以下配置创建了一个`foo`和`bar`缓存，该缓存最大数量为500，存活时间为10分钟：
+    ```properties
+    spring.cache.cache-names=foo,bar
+    spring.cache.guava.spec=maximumSize=500,expireAfterAccess=600s
+    ```
+    此外，如果定义`com.google.common.cache.CacheLoader` bean，它会自动关联到`GuavaCacheManager`。由于该`CacheLoader`
+    将关联该缓存管理器管理的所有缓存，它必须定义为`CacheLoader<Object, Object>`，自动配置会忽略所有泛型类型。
+
+
+###31.1.10 Simple
+
+    如果以上选项都没有采用，一个使用`ConcurrentHashMap`作为缓存存储的简单实现将被配置，这是应用没有添加缓存library的默认设置。
+
+
+###31.1.11 None
+
+    如果配置类中出现`@EnableCaching`，一个合适的缓存配置也同样被期待。如果在某些环境需要禁用全部缓存，强制将缓存类型设为`none`
+    将会使用一个no-op实现（没有任何实现的实现）：
+    ```properties
+    spring.cache.type=none
+    ```
+###31.1 支持的缓存提供商
+
+    缓存抽象不提供实际的存储，而是依赖于`org.springframework.cache.Cache`和`org.springframework.cache.CacheManager`接口的实现。
+    只要通过`@EnableCaching`注解开启缓存支持，Spring Boot就会根据实现自动配置一个合适的`CacheManager`。
+    
+    **注** 如果你使用的缓存设施beans不是基于接口的，确保启用`proxyTargetClass`，并设置其属性为`@EnableCaching`。
+    
+    **注** 使用`spring-boot-starter-cache`‘Starter’可以快速添加所需缓存依赖，如果你是手动添加依赖，需要注意一些实现只有`spring-context-support` jar才提供。
+    
+    如果你还没有定义一个`CacheManager`类型的bean，或一个名为`cacheResolver`的`CacheResolver`（查看`CachingConfigurer`），Spring Boot将尝试以下提供商（按这个顺序)：
+     
+     * [Generic](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/#boot-features-caching-provider-generic)
+     * [JCache (JSR-107)](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/#boot-features-caching-provider-jcache)(EhCache 3, Hazelcast, Infinispan, etc)
+     * [EhCache 2.x](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/#boot-features-caching-provider-ehcache2)
+     * [Hazelcast](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/#boot-features-caching-provider-hazelcast)
+     * [Infinispan](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/#boot-features-caching-provider-infinispan)
+     * [Couchbase](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/#boot-features-caching-provider-couchbase)
+     * [Redis](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/#boot-features-caching-provider-redis)
+     * [Caffeine](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/#boot-features-caching-provider-caffeine)
+     * [Guava](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/#boot-features-caching-provider-guava)
+     * [Simple](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/#boot-features-caching-provider-simple)
+     
+     **注** `spring.cache.type`属性可强制指定使用的缓存提供商，如果需要在一些环境（比如，测试）中[禁用全部缓存]
+     (http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/#boot-features-caching-provider-none)也可以使用该属性。
+     
+     如果`CacheManager`是Spring Boot自动配置的，你可以在它完全初始化前，通过实现`CacheManagerCustomizer`接口进一步配置，以下设置使用的缓存name：
+     ```java
+     @Bean
+    public CacheManagerCustomizer<ConcurrentMapCacheManager> cacheManagerCustomizer() {
+        return new CacheManagerCustomizer<ConcurrentMapCacheManager>() {
+            @Override
+            public void customize(ConcurrentMapCacheManager cacheManager) {
+                cacheManager.setCacheNames(Arrays.asList("one", "two"));
+            }
+        };
+    }
+     ```
+     **注** 在以上示例中，需要配置一个`ConcurrentMapCacheManager`，如果没有配置，则自定义器（customizer）将不会被调用。
+     自定义器你添加多少都可以，并可以使用`@Order`或`Ordered`对它们进行排序。
+
+
+### 32. 消息
+
+    Spring Framework框架为集成消息系统提供了扩展（extensive）支持：从使用`JmsTemplate`简化JMS API，到实现一个能够异步接收消息的完整
+    的底层设施。Spring AMQP提供一个相似的用于'高级消息队列协议'的特征集，并且Spring Boot也为`RabbitTemplate`和RabbitMQ提供了自动
+    配置选项。Spring Websocket提供原生的STOMP消息支持，并且Spring Boot也提供了starters和自动配置支持。
+
+### 32.1. JMS
+
+    `javax.jms.ConnectionFactory`接口提供标准的用于创建`javax.jms.Connection`的方法，`javax.jms.Connection`用于和JMS代理（broker）交互。
+    尽管Spring需要一个`ConnectionFactory`才能使用JMS，通常你不需要直接使用它，而是依赖于上层消息抽象（具体参考Spring框架的[相关章节]
+    (http://docs.spring.io/spring/docs/4.1.4.RELEASE/spring-framework-reference/htmlsingle/#jms)），Spring Boot会自动配置
+    发送和接收消息需要的设施（infrastructure）。
+
+### 32.1.1 ActiveQ支持
+
+    如果发现ActiveMQ在classpath下可用，Spring Boot会配置一个`ConnectionFactory`。如果需要代理，将会开启一个内嵌的，已经自动配置好的
+    代理（只要配置中没有指定代理URL）。
+    
+    ActiveMQ是通过`spring.activemq.*`外部配置来控制的，例如，你可能在`application.properties`中声明以下片段：
+    ```java
+    spring.activemq.broker-url=tcp://192.168.1.210:9876
+    spring.activemq.user=admin
+    spring.activemq.password=secret
+    ```
+    具体参考[ActiveMQProperties](http://github.com/spring-projects/spring-boot/tree/master/spring-boot-autoconfigure/src
+    /main/java/org/springframework/boot/autoconfigure/jms/activemq/ActiveMQProperties.java)。
+    
+    默认情况下，如果目标不存在，ActiveMQ将创建一个，所以目标是通过它们提供的名称解析出来的。
+
+###32.1.2 Artemis支持
+
+    Apache Artemis成立于2015年，那时HornetQ刚捐给Apache基金会，确保别使用了过期的HornetQ支持。
+    **注** 不要尝试同时使用Artemis和HornetQ。
+    
+    如果发现classpath下存在Artemis依赖，Spring Boot将自动配置一个`ConnectionFactory`。如果需要broker，Spring Boot将启动内嵌的broker，
+    并对其自动配置（除非模式mode属性被显式设置）。支持的modes包括：`embedded`（明确需要内嵌broker，如果classpath下不存在则出错），
+    `native`（使用`netty`传输协议连接broker）。当配置`native`模式，Spring Boot将配置一个连接broker的`ConnectionFactory`，
+    该broker使用默认的设置运行在本地机器。
+    **注** 使用`spring-boot-starter-artemis` 'Starter'，则连接已存在的Artemis实例及Spring设施集成JMS所需依赖都会提供，添加
+    `org.apache.activemq:artemis-jms-server`依赖，你可以使用内嵌模式。
+    
+    Artemis配置控制在外部配置属性`spring.artemis.*`中，例如，在`application.properties`声明以下片段：
+    ```properties
+    spring.artemis.mode=native
+    spring.artemis.host=192.168.1.210
+    spring.artemis.port=9876
+    spring.artemis.user=admin
+    spring.artemis.password=secret
+    ```
+    当使用内嵌模式时，你可以选择是否启用持久化，及目的地列表。这些可以通过逗号分割的列表来指定，也可以分别定义`org.apache.activemq
+    .artemis.jms.server.config.JMSQueueConfiguration`或`org.apache.activemq.artemis.jms.server.config.TopicConfiguration`
+    类型的bean来进一步配置队列和topic，具体支持选项可参考[ArtemisProperties](https://github.com/spring-projects/spring-boot/
+    tree/v1.4.1.RELEASE/spring-boot-autoconfigure/src/main/java/org/springframework/boot/autoconfigure/jms/artemis/
+    ArtemisProperties.java)。
+
+###32.1.5 发送消息
+
+    Spring的`JmsTemplate`会被自动配置，你可以将它直接注入到自己的beans中：
+    ```java
+    import org.springframework.beans.factory.annotation.Autowired;
+    import org.springframework.jms.core.JmsTemplate;
+    import org.springframework.stereotype.Component;
+    @Component
+    public class MyBean {
+    private final JmsTemplate jmsTemplate;
+    @Autowired
+    public MyBean(JmsTemplate jmsTemplate) {
+    this.jmsTemplate = jmsTemplate;
+    }
+    // ...
+    }
+    ```
+    
+    **注** 你可以使用相同方式注入[JmsMessagingTemplate](http://docs.spring.io/spring/docs/4.3.3.RELEASE/javadoc-api/org/springframework/jms/core/JmsMessagingTemplate.html)。如果定义了`DestinationResolver`或`MessageConverter` beans，它们将自动关联到自动配置的`JmsTemplate`。
+
+###32.1.6 接收消息
+
+    当JMS基础设施能够使用时，任何bean都能够被`@JmsListener`注解，以创建一个监听者端点。如果没有定义`JmsListenerContainerFactory`，将自动配置一个默认的。如果定义`DestinationResolver`或`MessageConverter` beans，它们将自动关联该默认factory。
+    
+    默认factory是事务性的，如果运行的设施出现`JtaTransactionManager`，它默认将关联到监听器容器。如果没有，`sessionTransacted`标记将启用。在后一场景中，你可以通过在监听器方法上添加`@Transactional`，以本地数据存储事务处理接收的消息，这可以确保接收的消息在本地事务完成后只确认一次。
+    
+    下面的组件创建了一个以`someQueue`为目标的监听器端点：
+    ```java
+    @Component
+    public class MyBean {
+    @JmsListener(destination = "someQueue")
+    public void processMessage(String content) {
+    // ...
+    }
+    }
+    ```
+    具体查看[@EnableJms javadoc](http://docs.spring.io/spring/docs/4.3.3.RELEASE/javadoc-api/org/springframework/jms/annotation/EnableJms.html)。
+    
+    如果想创建多个`JmsListenerContainerFactory`实例或覆盖默认实例，你可以使用Spring Boot提供的`DefaultJmsListenerContainerFactoryConfigurer`，通过它可以使用跟自动配置的实例相同配置来初始化一个`DefaultJmsListenerContainerFactory`。
+    
+    例如，以下使用一个特殊的`MessageConverter`创建另一个factory：
+    ```java
+    @Configuration
+    static class JmsConfiguration {
+    
+        @Bean
+        public DefaultJmsListenerContainerFactory myFactory(
+                DefaultJmsListenerContainerFactoryConfigurer configurer) {
+            DefaultJmsListenerContainerFactory factory =
+                    new DefaultJmsListenerContainerFactory();
+            configurer.configure(factory, connectionFactory());
+            factory.setMessageConverter(myMessageConverter());
+            return factory;
+        }
+    
+    }
+    ```
+    然后，你可以像下面那样在任何`@JmsListener`注解中使用：
+    ```java
+    @Component
+    public class MyBean {
+    
+        @JmsListener(destination = "someQueue", containerFactory="myFactory")
+        public void processMessage(String content) {
+            // ...
+        }
+    
+    }
+    ```
+
+###32.2.1 RabbitMQ支持
+
+    RabbitMQ是一个基于AMQP协议，轻量级的，可靠的，可扩展的和可移植的消息代理，Spring就使用它进行消息传递。RabbitMQ配置被外部属性
+    `spring.rabbitmq.*`控制，例如，在`application.properties`中声明以下片段：
+    ```properties
+    spring.rabbitmq.host=localhost
+    spring.rabbitmq.port=5672
+    spring.rabbitmq.username=admin
+    spring.rabbitmq.password=secret
+    ```
+    更多选项参考[RabbitProperties](https://github.com/spring-projects/spring-boot/tree/v1.4.1.RELEASE/
+    spring-boot-autoconfigure/src/main/java/org/springframework/boot/autoconfigure/amqp/RabbitProperties.java)。
+
+
+###32.2.2 发送消息
+
+    Spring的`AmqpTemplate`和`AmqpAdmin`会被自动配置，你可以将它们直接注入beans中：
+    ```java
+    import org.springframework.amqp.core.AmqpAdmin;
+    import org.springframework.amqp.core.AmqpTemplate;
+    import org.springframework.beans.factory.annotation.Autowired;
+    import org.springframework.stereotype.Component;
+    
+    @Component
+    public class MyBean {
+    
+        private final AmqpAdmin amqpAdmin;
+        private final AmqpTemplate amqpTemplate;
+    
+        @Autowired
+        public MyBean(AmqpAdmin amqpAdmin, AmqpTemplate amqpTemplate) {
+            this.amqpAdmin = amqpAdmin;
+            this.amqpTemplate = amqpTemplate;
+        }
+    
+        // ...
+    
+    }
+    ```
+    **注** 可以使用相似方式注入`RabbitMessagingTemplate`，如果定义`MessageConverter` bean，它将自动关联到自动配置的`AmqpTemplate`。
+    
+    如果需要的话，所有定义为bean的`org.springframework.amqp.core.Queue`将自动在RabbitMQ实例中声明相应的队列。你可以启用
+    `AmqpTemplate`的重试选项，例如代理连接丢失时，重试默认不启用。
+
+
+###32.2.3 接收消息
+
+    当Rabbit设施出现时，所有bean都可以注解`@RabbitListener`来创建一个监听器端点。如果没有定义`RabbitListenerContainerFactory`，
+    Spring Boot将自动配置一个默认的。如果定义`MessageConverter` beans，它将自动关联到默认的factory。
+    
+    下面的组件创建一个`someQueue`队列上的监听器端点：
+    ```java
+    @Component
+    public class MyBean {
+    
+        @RabbitListener(queues = "someQueue")
+        public void processMessage(String content) {
+            // ...
+        }
+    
+    }
+    ```
+    **注** 具体参考[@EnableRabbit](http://docs.spring.io/spring-amqp/docs/current/api/org/springframework/amqp/rabbit/
+    annotation/EnableRabbit.html)。
+    
+    如果需要创建多个`RabbitListenerContainerFactory`实例，或想覆盖默认实例，你可以使用Spring Boot提供的
+    `SimpleRabbitListenerContainerFactoryConfigurer`，通过它可以使用跟自动配置实例相同的配置初始化`SimpleRabbitListenerContainerFactory`。
+    
+    例如，下面使用一个特殊的`MessageConverter`创建了另一个factory：
+    ```java
+    @Configuration
+    static class RabbitConfiguration {
+    
+        @Bean
+        public SimpleRabbitListenerContainerFactory myFactory(
+                SimpleRabbitListenerContainerFactoryConfigurer configurer) {
+            SimpleRabbitListenerContainerFactory factory =
+                    new SimpleRabbitListenerContainerFactory();
+            configurer.configure(factory, connectionFactory);
+            factory.setMessageConverter(myMessageConverter());
+            return factory;
+        }
+    
+    }
+    ```
+    然后，你可以像下面那样在所有`@RabbitListener`注解方法中使用：
+    ```java
+    @Component
+    public class MyBean {
+    
+        @RabbitListener(queues = "someQueue", containerFactory="myFactory")
+        public void processMessage(String content) {
+            // ...
+        }
+    
+    }
+    ```
+    你可以启动重试处理那些监听器抛出异常的情况，当重试次数达到限制时，该消息将被拒绝，要不被丢弃，要不路由到一个dead-letter交换器，
+    如果broker这样配置的话，默认禁用重试。
+
+    **重要** 如果没启用重试，且监听器抛出异常，则Rabbit会不定期进行重试。你可以采用两种方式修改该行为：设置`defaultRequeueRejected`
+    属性为`false`，这样就不会重试；或抛出一个`AmqpRejectAndDontRequeueException`异常表示该消息应该被拒绝，这是开启重试，且达到最大重试次数时使用的策略。
+
+###32.2 AMQP
+
+    高级消息队列协议（AMQP）是一个用于消息中间件的，平台无关的，线路级（wire-level）协议。Spring AMQP项目使用Spring的核心概念
+    开发基于AMQP的消息解决方案，Spring Boot为通过RabbitMQ使用AMQP提供了一些便利，包括`spring-boot-starter-amqp`‘Starter’。
+
+
+###33. 调用REST服务
+
+    如果应用需要调用远程REST服务，你可以使用Spring框架的`RestTemplate`类。由于`RestTemplate`实例经常在使用前需要自定义，
+    Spring Boot就没有提供任何自动配置的`RestTemplate` bean，不过你可以通过自动配置的`RestTemplateBuilder`创建自己需要的
+    `RestTemplate`实例。自动配置的`RestTemplateBuilder`会确保应用到`RestTemplate`实例的`HttpMessageConverters`是合适的。
+    
+    以下是典型的示例：
+    ```java
+    @Service
+    public class MyBean {
+    
+        private final RestTemplate restTemplate;
+    
+        public MyBean(RestTemplateBuilder restTemplateBuilder) {
+            this.restTemplate = restTemplateBuilder.build();
+        }
+    
+        public Details someRestCall(String name) {
+            return this.restTemplate.getForObject("/{name}/details", Details.class, name);
+        }
+    
+    }
+    ```
+    **注** `RestTemplateBuilder`包含很多有用的方法，可以用于快速配置一个`RestTemplate`。例如，你可以使用
+    `builder.basicAuthorization("user", "password").build()`添加基本的认证支持（BASIC auth）。
+
+###33.1 自定义RestTemplate
+
+    当使用`RestTemplateBuilder`构建`RestTemplate`时，可以通过`RestTemplateCustomizer`进行更高级的定制，所有`RestTemplateCustomizer` beans将自动添加到自动配置的`RestTemplateBuilder`。此外，调用`additionalCustomizers(RestTemplateCustomizer…)`方法可以创建一个新的，具有其他customizers的`RestTemplateBuilder`。
+    
+    以下示例演示使用自定义器（customizer）配置所有hosts使用代理，除了`192.168.0.5`：
+    ```java
+    static class ProxyCustomizer implements RestTemplateCustomizer {
+    
+        @Override
+        public void customize(RestTemplate restTemplate) {
+            HttpHost proxy = new HttpHost("proxy.example.com");
+            HttpClient httpClient = HttpClientBuilder.create()
+                    .setRoutePlanner(new DefaultProxyRoutePlanner(proxy) {
+    
+                        @Override
+                        public HttpHost determineProxy(HttpHost target,
+                                HttpRequest request, HttpContext context)
+                                        throws HttpException {
+                            if (target.getHostName().equals("192.168.0.5")) {
+                                return null;
+                            }
+                            return super.determineProxy(target, request, context);
+                        }
+    
+                    }).build();
+            restTemplate.setRequestFactory(
+                    new HttpComponentsClientHttpRequestFactory(httpClient));
+        }
+    
+    }
+    ```
+    
+### 34. 发送邮件
+
+    Spring框架通过`JavaMailSender`接口为发送邮件提供了一个简单的抽象，并且Spring Boot也为它提供了自动配置和一个starter模块。
+    具体查看[JavaMailSender参考文档](http://docs.spring.io/spring/docs/4.3.3.RELEASE/spring-framework-reference/htmlsingle/#mail)。
+    
+    如果`spring.mail.host`和相关的libraries（通过`spring-boot-starter-mail`定义的）都可用，Spring Boot将创建一个默认的
+    `JavaMailSender`，该sender可以通过`spring.mail`命名空间下的配置项进一步自定义，具体参考[MailProperties](http://github.com/
+    spring-projects/spring-boot/tree/master/spring-boot-autoconfigure/src/main/java/org/springframework/boot/
+    autoconfigure/mail/MailProperties.java)。
+
+    
+### 35. 使用JTA处理分布式事务
+
+    Spring Boot通过[Atomkos](http://www.atomikos.com/)或[Bitronix](http://docs.codehaus.org/display/BTM/Home)的
+    内嵌事务管理器支持跨多个XA资源的分布式JTA事务，当部署到恰当的J2EE应用服务器时也会支持JTA事务。
+    
+    当发现JTA环境时，Spring Boot将使用Spring的`JtaTransactionManager`来管理事务。自动配置的JMS，DataSource和JPA　beans将被升级
+    以支持XA事务。你可以使用标准的Spring idioms，比如`@Transactional`，来参与到一个分布式事务中。如果处于JTA环境，但仍想使用本地事务，
+    你可以将`spring.jta.enabled`属性设置为`false`来禁用JTA自动配置功能。
+
+###35.1 使用Atomikos事务管理器
+
+    Atomikos是一个非常流行的开源事务管理器，并且可以嵌入到你的Spring Boot应用中。你可以使用`spring-boot-starter-jta-atomikos`
+    Starter去获取正确的Atomikos库。Spring Boot会自动配置Atomikos，并将合适的`depends-on`应用到你的Spring Beans上，确保它们以正确的顺序启动和关闭。
+    
+    默认情况下，Atomikos事务日志将被记录在应用home目录（你的应用jar文件放置的目录）下的`transaction-logs`文件夹中。你可以在
+    `application.properties`文件中通过设置`spring.jta.log-dir`属性来定义该目录，以`spring.jta.atomikos.properties`开头的属性能
+    用来定义Atomikos的`UserTransactionServiceIml`实现，具体参考[AtomikosProperties javadoc](http://docs.spring.io/spring-boot/
+    docs/1.4.1.RELEASE/api/org/springframework/boot/jta/atomikos/AtomikosProperties.html)。
+    
+    **注** 为了确保多个事务管理器能够安全地和相应的资源管理器配合，每个Atomikos实例必须设置一个唯一的ID。默认情况下，该ID是Atomikos
+    实例运行的机器上的IP地址。为了确保生产环境中该ID的唯一性，你需要为应用的每个实例设置不同的`spring.jta.transaction-manager-id`属性值。
+
+
+###35.2 使用Bitronix事务管理器
+
+    Bitronix是一个流行的开源JTA事务管理器实现，你可以使用`spring-boot-starter-jta-bitronix`starter为项目添加合适的Birtronix依赖。
+    和Atomikos类似，Spring Boot将自动配置Bitronix，并对beans进行后处理（post-process）以确保它们以正确的顺序启动和关闭。
+    
+    默认情况下，Bitronix事务日志（`part1.btm`和`part2.btm`）将被记录到应用home目录下的`transaction-logs`文件夹中，你可以通过设置
+    `spring.jta.log-dir`属性来自定义该目录。以`spring.jta.bitronix.properties`开头的属性将被绑定到`bitronix.tm.Configuration` 
+    bean，你可以通过这完成进一步的自定义，具体参考[Bitronix文档](https://github.com/bitronix/btm/wiki/Transaction-manager-configuration)。
+    
+    **注** 为了确保多个事务管理器能够安全地和相应的资源管理器配合，每个Bitronix实例必须设置一个唯一的ID。默认情况下，该ID是Bitronix实例
+    运行的机器上的IP地址。为了确保生产环境中该ID的唯一性，你需要为应用的每个实例设置不同的`spring.jta.transaction-manager-id`属性值。
+
+
+###35.4 使用J2EE管理的事务管理器
+
+    如果你将Spring Boot应用打包为一个`war`或`ear`文件，并将它部署到一个J2EE的应用服务器中，那你就能使用应用服务器内建的事务管理器。
+    Spring Boot将尝试通过查找常见的JNDI路径（`java:comp/UserTransaction`, `java:comp/TransactionManager`等）来自动配置一个
+    事务管理器。如果使用应用服务器提供的事务服务，你通常需要确保所有的资源都被应用服务器管理，并通过JNDI暴露出去。Spring Boot通过查找
+    JNDI路径`java:/JmsXA`或`java:/XAConnectionFactory`获取一个`ConnectionFactory`来自动配置JMS，并且你可以使用
+    `spring.datasource.jndi-name`属性配置你的`DataSource`。
+
+###35.5 混合XA和non-XA的JMS连接
+
+    当使用JTA时，primary JMS `ConnectionFactory`bean将能识别XA，并参与到分布式事务中。有些情况下，你可能需要使用non-XA的
+    `ConnectionFactory`去处理一些JMS消息。例如，你的JMS处理逻辑可能比XA超时时间长。
+    
+    如果想使用一个non-XA的`ConnectionFactory`，你可以注入`nonXaJmsConnectionFactory`　bean而不是`@Primary`
+     `jmsConnectionFactory` bean。为了保持一致，`jmsConnectionFactory`　bean将以别名`xaJmsConnectionFactor`来被使用。
+    
+    示例如下：
+    ```java
+    // Inject the primary (XA aware) ConnectionFactory
+    @Autowired
+    private ConnectionFactory defaultConnectionFactory;
+    // Inject the XA aware ConnectionFactory (uses the alias and injects the same as above)
+    @Autowired
+    @Qualifier("xaJmsConnectionFactory")
+    private ConnectionFactory xaConnectionFactory;
+    // Inject the non-XA aware ConnectionFactory
+    @Autowired
+    @Qualifier("nonXaJmsConnectionFactory")
+    private ConnectionFactory nonXaConnectionFactory;
+    ```
+    
+###36. Hazelcast
+
+    如果添加hazelcast依赖，Spring Boot将自动配置一个`HazelcastInstance`，你可以注入到应用中，`HazelcastInstance`实例只有存在相关
+    配置时才会创建。
+    如果定义了`com.hazelcast.config.Config` bean，则Spring Boot将使用它。如果你的配置指定了实例的名称，Spring Boot将尝试定位已
+    存在的而不是创建一个新实例。你可以在配置中指定将要使用的`hazelcast.xml`配置文件：
+    ```properties
+    spring.hazelcast.config=classpath:config/my-hazelcast.xml
+    ```
+    否则，Spring Boot尝试从默认路径查找Hazelcast配置，也就是`hazelcast.xml`所在的工作路径或classpath的根路径。Spring Boot也会检查
+    是否设置`hazelcast.config`系统属性，具体参考[Hazelcast文档](http://docs.hazelcast.org/docs/latest/manual/html-single/)。
+    
+    **注** Spring Boot为Hazelcast提供了缓存支持，如果开启缓存的话，`HazelcastInstance`实例将自动包装进一个`CacheManager`实现中。
+
+
+###38. Spring Session
+
+    Spring Boot为Spring Session自动配置了各种存储：
+    
+    * JDBC
+    * MongoDB
+    * Redis
+    * Hazelcast
+    * HashMap
+    
+    如果Spring Session可用，你只需选择想要的存储sessions的存储类型[StoreType](https://github.com/spring-projects/spring-boot/
+    tree/v1.4.1.RELEASE/spring-boot-autoconfigure/src/main/java/org/springframework/boot/autoconfigure/session/
+    StoreType.java)。例如，按如下配置将使用JDBC作为后端存储：
+    ```properties
+    spring.session.store-type=jdbc
+    ```
+    **注** 出于向后兼容，如果Redis可用，Spring Session将自动配置使用Redis存储。
+    
+    **注** 设置`store-type`为`none`可以禁用Spring Session。
+    
+    每个存储都有特殊设置，例如，对于jdbc存储可自定义表名：
+    ```properties
+    spring.session.jdbc.table-name=SESSIONS
+    ```
+    
+###40. 测试
+
+    Spring Boot提供很多有用的工具类和注解用于帮助你测试应用，主要分两个模块：`spring-boot-test`包含核心组件，
+    `spring-boot-test-autoconfigure`为测试提供自动配置。
+    
+    大多数开发者只需要引用`spring-boot-starter-test` ‘Starter’，它既提供Spring Boot测试模块，也提供JUnit，AssertJ，
+    Hamcrest和很多有用的依赖。
+
+    
+###40.1 测试作用域依赖
+
+    如果使用`spring-boot-starter-test` ‘Starter’（在`test``scope`内），你将发现下列被提供的库：
+    
+    - [JUnit](http://junit.org/) - 事实上的(de-facto)标准，用于Java应用的单元测试。
+    - [Spring Test](http://docs.spring.io/spring/docs/4.3.3.RELEASE/spring-framework-reference/htmlsingle/
+    #integration-testing.html) & Spring Boot Test  - 对Spring应用的集成测试支持。
+    - [AssertJ](http://joel-costigliola.github.io/assertj/) - 一个流式断言库。
+    - [Hamcrest](http://hamcrest.org/JavaHamcrest/) - 一个匹配对象的库（也称为约束或前置条件）。
+    - [Mockito](http://mockito.org/) - 一个Java模拟框架。
+    - [JSONassert](https://github.com/skyscreamer/JSONassert) - 一个针对JSON的断言库。
+    - [JsonPath](https://github.com/jayway/JsonPath) - 用于JSON的XPath。
+    
+    这是写测试用例经常用到的库，如果它们不能满足要求，你可以随意添加其他的依赖。
+
+    
+###40.3.1 发现测试配置
+
+    如果熟悉Spring测试框架，你可能经常通过`@ContextConfiguration(classes=…)`指定加载哪些Spring `@Configuration`，也可能经常在
+    测试类中使用内嵌`@Configuration`类。当测试Spring Boot应用时这些就不需要了，Spring Boot的`@*Test`注解会自动搜索主配置类，
+    即使你没有显式定义它。
+    
+    搜索算法是从包含测试类的package开始搜索，直到发现`@SpringBootApplication`或`@SpringBootConfiguration`注解的类，只要按
+    [恰当的方式组织代码](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/
+    #using-boot-structuring-your-code)，通常都会发现主配置类。
+    
+    如果想自定义主配置类，你可以使用一个内嵌的`@TestConfiguration`类。不像内嵌的`@Configuration`类（会替换应用主配置类），
+    内嵌的`@TestConfiguration`类是可以跟应用主配置类一块使用的。
+    
+    **注** Spring测试框架在测试过程中会缓存应用上下文，因此，只要你的测试共享相同的配置（不管是怎么发现的），加载上下文的潜在时间消耗都只会发生一次。
+
+
+###40.3.2 排除测试配置
+
+    如果应用使用组件扫描，比如`@SpringBootApplication`或`@ComponentScan`，你可能发现为测试类创建的组件或配置在任何地方都可能偶然扫描到。
+    为了防止这种情况，Spring Boot提供了`@TestComponent`和`@TestConfiguration`注解，可用在`src/test/java`目录下的类，以暗示它们不应该被扫描。
+    
+    **注** 只有上层类需要`@TestComponent`和`@TestConfiguration`注解，如果你在测试类（任何有`@Test`方法或`@RunWith`注解的类）中定义
+    `@Configuration`或`@Component`内部类，它们将被自动过滤。
+    
+    **注** 如果直接使用`@ComponentScan`（比如不通过`@SpringBootApplication`），你需要为它注册`TypeExcludeFilter`，具体参考
+    [Javadoc](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/api/org/springframework/boot/context/TypeExcludeFilter.html)。
+
+
+###40.3.3 使用随机端口
+
+    如果你需要为测试启动一个完整运行的服务器，我们建议你使用随机端口。如果你使用`@SpringBootTest(webEnvironment=WebEnvironment
+    .RANDOM_PORT)`，每次运行测试都会为你分配一个可用的随机端口。
+    
+    `@LocalServerPort`注解用于[注入测试用例实际使用的端口](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/
+    htmlsingle/#howto-discover-the-http-port-at-runtime)，简单起见，需要发起REST调用到启动服务器的测试可以额外`@Autowire`一个
+    `TestRestTemplate`，它可以解析到运行服务器的相关链接：
+    ```java
+    import org.junit.*;
+    import org.junit.runner.*;
+    import org.springframework.boot.test.context.web.*;
+    import org.springframework.boot.test.web.client.*;
+    import org.springframework.test.context.junit4.*;
+    
+    import static org.assertj.core.api.Assertions.*
+    
+    @RunWith(SpringRunner.class)
+    @SpringBootTest(webEnvironment=WebEnvironment.RANDOM_PORT)
+    public class MyWebIntegrationTests {
+    
+        @Autowired
+        private TestRestTemplate restTemplate;
+    
+        @Test
+        public void exampleTest() {
+            String body = this.restTemplate.getForObject("/", String.class);
+            assertThat(body).isEqualTo("Hello World");
+        }
+    
+    }
+    ```
+
+###40.3.4 模拟和监视beans
+
+    有时候需要在运行测试用例时mock一些组件，例如，你可能需要一些远程服务的门面，但在开发期间不可用。Mocking在模拟真实环境很难复现的失败情况时非常有用。
+    
+    Spring Boot提供一个`@MockBean`注解，可用于为`ApplicationContext`中的bean定义一个Mockito mock，你可以使用该注解添加新beans，或替换已存在的bean定义。该注解可直接用于测试类，也可用于测试类的字段，或用于`@Configuration`注解的类和字段。当用于字段时，创建mock的实例也会被注入。Mock beans每次调用完测试方法后会自动重置。
+    
+    下面是一个典型示例，演示使用mock实现替换真实存在的`RemoteService` bean：
+    ```java
+    import org.junit.*;
+    import org.junit.runner.*;
+    import org.springframework.beans.factory.annotation.*;
+    import org.springframework.boot.test.context.*;
+    import org.springframework.boot.test.mock.mockito.*;
+    import org.springframework.test.context.junit4.*;
+    
+    import static org.assertj.core.api.Assertions.*;
+    import static org.mockito.BDDMockito.*;
+    
+    @RunWith(SpringRunner.class)
+    @SpringBootTest
+    public class MyTests {
+    
+        @MockBean
+        private RemoteService remoteService;
+    
+        @Autowired
+        private Reverser reverser;
+    
+        @Test
+        public void exampleTest() {
+            // RemoteService has been injected into the reverser bean
+            given(this.remoteService.someCall()).willReturn("mock");
+            String reverse = reverser.reverseSomeCall();
+            assertThat(reverse).isEqualTo("kcom");
+        }
+    
+    }
+    ```
+    此外，你可以使用`@SpyBean`和Mockito `spy`包装一个已存在的bean，具体参考文档。
+    
+###40.3.6 自动配置的JSON测试
+
+    你可以使用`@JsonTest`测试对象JSON序列化和反序列化是否工作正常，该注解将自动配置Jackson `ObjectMapper`，`@JsonComponent`和
+    Jackson `Modules`。如果碰巧使用gson代替Jackson，该注解将配置`Gson`。使用`@AutoConfigureJsonTesters`可以配置auto-configuration的元素。
+    
+    Spring Boot提供基于AssertJ的帮助类（helpers），可用来配合JSONassert和JsonPath libraries检测JSON是否为期望的，`JacksonHelper`，
+    `GsonHelper`，`BasicJsonTester`分别用于Jackson，Gson，Strings。当使用`@JsonTest`时，你可以在测试类中`@Autowired`任何helper字段：
+    ```java
+    import org.junit.*;
+    import org.junit.runner.*;
+    import org.springframework.beans.factory.annotation.*;
+    import org.springframework.boot.test.autoconfigure.json.*;
+    import org.springframework.boot.test.context.*;
+    import org.springframework.boot.test.json.*;
+    import org.springframework.test.context.junit4.*;
+    
+    import static org.assertj.core.api.Assertions.*;
+    
+    @RunWith(SpringRunner.class)
+    @JsonTest
+    public class MyJsonTests {
+    
+        @Autowired
+        private JacksonTester<VehicleDetails> json;
+    
+        @Test
+        public void testSerialize() throws Exception {
+            VehicleDetails details = new VehicleDetails("Honda", "Civic");
+            // Assert against a `.json` file in the same package as the test
+            assertThat(this.json.write(details)).isEqualToJson("expected.json");
+            // Or use JSON path based assertions
+            assertThat(this.json.write(details)).hasJsonPathStringValue("@.make");
+            assertThat(this.json.write(details)).extractingJsonPathStringValue("@.make")
+                    .isEqualTo("Honda");
+        }
+    
+        @Test
+        public void testDeserialize() throws Exception {
+            String content = "{\"make\":\"Ford\",\"model\":\"Focus\"}";
+            assertThat(this.json.parse(content))
+                    .isEqualTo(new VehicleDetails("Ford", "Focus"));
+            assertThat(this.json.parseObject(content).getMake()).isEqualTo("Ford");
+        }
+    
+    }
+    ```
+    **注** JSON帮助类可用于标准单元测试类，如果没有使用`@JsonTest`，你需要在`@Before`方法中调用帮助类的`initFields`方法。
+    
+    在[附录](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/#test-auto-configuration)中可以
+    查看`@JsonTest`开启的自动配置列表。
+    
+
+###40.3.7 自动配置的Spring MVC测试
+
+    你可以使用`@WebMvcTest`检测Spring MVC控制器是否工作正常，该注解将自动配置Spring MVC设施，并且只扫描注解`@Controller`，
+    `@ControllerAdvice`，`@JsonComponent`，`Filter`，`WebMvcConfigurer`和`HandlerMethodArgumentResolver`的beans，
+    其他常规的`@Component` beans将不会被扫描。
+    
+    通常`@WebMvcTest`只限于单个控制器（controller）使用，并结合`@MockBean`以提供需要的协作者（collaborators）的mock实现。
+    `@WebMvcTest`也会自动配置`MockMvc`，Mock MVC为快速测试MVC控制器提供了一种强大的方式，并且不需要启动一个完整的HTTP服务器。
+    
+    **注** 使用`@AutoConfigureMockMvc`注解一个non-`@WebMvcTest`的类（比如`SpringBootTest`）也可以自动配置`MockMvc`。
+    
+    ```java
+    import org.junit.*;
+    import org.junit.runner.*;
+    import org.springframework.beans.factory.annotation.*;
+    import org.springframework.boot.test.autoconfigure.web.servlet.*;
+    import org.springframework.boot.test.mock.mockito.*;
+    
+    import static org.assertj.core.api.Assertions.*;
+    import static org.mockito.BDDMockito.*;
+    import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+    import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+    
+    @RunWith(SpringRunner.class)
+    @WebMvcTest(UserVehicleController.class)
+    public class MyControllerTests {
+    
+        @Autowired
+        private MockMvc mvc;
+    
+        @MockBean
+        private UserVehicleService userVehicleService;
+    
+        @Test
+        public void testExample() throws Exception {
+            given(this.userVehicleService.getVehicleDetails("sboot"))
+                    .willReturn(new VehicleDetails("Honda", "Civic"));
+            this.mvc.perform(get("/sboot/vehicle").accept(MediaType.TEXT_PLAIN))
+                    .andExpect(status().isOk()).andExpect(content().string("Honda Civic"));
+        }
+    
+    }
+    ```
+    **注** 如果需要定义自定配置（auto-configuration）的元素（比如什么时候使用servlet filters），你可以使用`@AutoConfigureMockMvc`的属性。
+    
+    如果你使用HtmlUnit或Selenium， 自动配置将提供一个`WebClient` bean和/或`WebDriver` bean，以下是使用HtmlUnit的示例：
+    ```java
+    import com.gargoylesoftware.htmlunit.*;
+    import org.junit.*;
+    import org.junit.runner.*;
+    import org.springframework.beans.factory.annotation.*;
+    import org.springframework.boot.test.autoconfigure.web.servlet.*;
+    import org.springframework.boot.test.mock.mockito.*;
+    
+    import static org.assertj.core.api.Assertions.*;
+    import static org.mockito.BDDMockito.*;
+    
+    @RunWith(SpringRunner.class)
+    @WebMvcTest(UserVehicleController.class)
+    public class MyHtmlUnitTests {
+    
+        @Autowired
+        private WebClient webClient;
+    
+        @MockBean
+        private UserVehicleService userVehicleService;
+    
+        @Test
+        public void testExample() throws Exception {
+            given(this.userVehicleService.getVehicleDetails("sboot"))
+                    .willReturn(new VehicleDetails("Honda", "Civic"));
+            HtmlPage page = this.webClient.getPage("/sboot/vehicle.html");
+            assertThat(page.getBody().getTextContent()).isEqualTo("Honda Civic");
+        }
+    
+    }
+    ```
+    在[附录](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/#test-auto-configuration)中
+    可以查看`@WebMvcTest`开启的自动配置列表。
+
+###40.3.8 自动配置的Data JPA测试
+
+    你可以使用`@DataJpaTest`测试JPA应用，它默认配置一个内存型的内嵌数据库，扫描`@Entity`类，并配置Spring Data JPA仓库，其他常规的
+    `@Component` beans不会加载进`ApplicationContext`。
+    
+    Data JPA测试类是事务型的，默认在每个测试结束后回滚，具体查看Spring参考文档的[相关章节](http://docs.spring.io/spring/docs/
+    4.3.3.RELEASE/spring-framework-reference/htmlsingle#testcontext-tx-enabling-transactions)。如果这不是你想要的结果，
+    可以通过禁用事务管理器来改变：
+    ```java
+    import org.junit.Test;
+    import org.junit.runner.RunWith;
+    import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+    import org.springframework.test.context.junit4.SpringRunner;
+    import org.springframework.transaction.annotation.Propagation;
+    import org.springframework.transaction.annotation.Transactional;
+    
+    @RunWith(SpringRunner.class)
+    @DataJpaTest
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public class ExampleNonTransactionalTests {
+    
+    }
+    ```
+    Data JPA测试类可能会注入一个专为测试设计的`[TestEntityManager](https://github.com/spring-projects/spring-boot/tree/
+    v1.4.1.RELEASE/spring-boot-test-autoconfigure/src/main/java/org/springframework/boot/test/autoconfigure/orm/jpa/
+    TestEntityManager.java)` bean以替换标准的JPA `EntityManager`。如果想在`@DataJpaTests`外使用`TestEntityManager`，你可以
+    使用`@AutoConfigureTestEntityManager`注解。如果需要，`JdbcTemplate `也是可用的。
+    ```java
+    import org.junit.*;
+    import org.junit.runner.*;
+    import org.springframework.boot.test.autoconfigure.orm.jpa.*;
+    
+    import static org.assertj.core.api.Assertions.*;
+    
+    @RunWith(SpringRunner.class)
+    @DataJpaTest
+    public class ExampleRepositoryTests {
+    
+        @Autowired
+        private TestEntityManager entityManager;
+    
+        @Autowired
+        private UserRepository repository;
+    
+        @Test
+        public void testExample() throws Exception {
+            this.entityManager.persist(new User("sboot", "1234"));
+            User user = this.repository.findByUsername("sboot");
+            assertThat(user.getUsername()).isEqualTo("sboot");
+            assertThat(user.getVin()).isEqualTo("1234");
+        }
+    
+    }
+    ```
+    对于测试来说，内存型的内嵌数据库通常是足够的，因为它们既快又不需要任何安装。如果比较喜欢在真实数据库上运行测试，你可以使用
+    `@AutoConfigureTestDatabase`注解：
+    ```java
+    @RunWith(SpringRunner.class)
+    @DataJpaTest
+    @AutoConfigureTestDatabase(replace=Replace.NONE)
+    public class ExampleRepositoryTests {
+    
+        // ...
+    
+    }
+    ```
+    在[附录](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/#test-auto-configuration)中可以
+    查看`@DataJpaTest`开启的自动配置列表。
+    
+    
+###40.3.9 自动配置的REST客户端
+
+    你可以使用`@RestClientTest`测试REST客户端，它默认会自动配置Jackson和GSON，配置`RestTemplateBuilder`，并添加
+    `MockRestServiceServer`支持。你需要将`@RestClientTest`的`value`或`components`属性值设置为待测试类：
+    ```java
+    @RunWith(SpringRunner.class)
+    @RestClientTest(RemoteVehicleDetailsService.class)
+    public class ExampleRestClientTest {
+    
+        @Autowired
+        private RemoteVehicleDetailsService service;
+    
+        @Autowired
+        private MockRestServiceServer server;
+    
+        @Test
+        public void getVehicleDetailsWhenResultIsSuccessShouldReturnDetails()
+                throws Exception {
+            this.server.expect(requestTo("/greet/details"))
+                    .andRespond(withSuccess("hello", MediaType.TEXT_PLAIN));
+            String greeting = this.service.callRestService();
+            assertThat(greeting).isEqualTo("hello");
+        }
+    
+    }
+    ```
+    在[附录](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/#test-auto-configuration)中
+    可以查看`@RestClientTest`启用的自动配置列表。
+    
+###40.3.10 自动配置的Spring REST Docs测试
+
+    如果想在测试类中使用Spring REST Docs，你可以使用`@AutoConfigureRestDocs`注解，它会自动配置`MockMvc`去使用Spring REST Docs，
+    并移除对Spring REST Docs的JUnit规则的需要。
+    ```java
+    import org.junit.Test;
+    import org.junit.runner.RunWith;
+    
+    import org.springframework.beans.factory.annotation.Autowired;
+    import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+    import org.springframework.http.MediaType;
+    import org.springframework.test.context.junit4.SpringRunner;
+    import org.springframework.test.web.servlet.MockMvc;
+    
+    import static org.springframework.restdocs.mockmvc.MockMvcRestDocumentation.document;
+    import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+    import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+    
+    @RunWith(SpringRunner.class)
+    @WebMvcTest(UserController.class)
+    @AutoConfigureRestDocs("target/generated-snippets")
+    public class UserDocumentationTests {
+    
+        @Autowired
+        private MockMvc mvc;
+    
+        @Test
+        public void listUsers() throws Exception {
+            this.mvc.perform(get("/users").accept(MediaType.TEXT_PLAIN))
+                    .andExpect(status().isOk())
+                    .andDo(document("list-users"));
+        }
+    
+    }
+    ```
+    此外，除了配置输出目录，`@AutoConfigureRestDocs`也能配置将出现在任何文档化的URLs中的部分，比如host，scheme和port等。
+    如果需要控制更多Spring REST Docs的配置，你可以使用`RestDocsMockMvcConfigurationCustomizer` bean：
+    ```java
+    @TestConfiguration
+    static class CustomizationConfiguration
+            implements RestDocsMockMvcConfigurationCustomizer {
+    
+        @Override
+        public void customize(MockMvcRestDocumentationConfigurer configurer) {
+            configurer.snippets().withTemplateFormat(TemplateFormats.markdown());
+        }
+    
+    }
+    ```
+    如果想充分利用Spring REST Docs对参数化输出目录的支持，你可以创建一个`RestDocumentationResultHandler` bean，自动配置将使用
+    它调用`alwaysDo`方法，进而促使每个`MockMvc`调用都会自动产生默认片段：
+    ```java
+    @TestConfiguration
+    static class ResultHandlerConfiguration {
+    
+        @Bean
+        public RestDocumentationResultHandler restDocumentation() {
+            return MockMvcRestDocumentation.document("{method-name}");
+        }
+    
+    }
+    ```
+        
+###40.3.11 使用Spock测试Spring Boot应用
+
+    如果想使用Spock测试Spring Boot应用，你需要为应用添加Spock的`spock-spring`依赖，该依赖已将Spring测试框架集成进Spock，
+    怎么使用Spock测试Spring Boot应用取决于你使用的Spock版本。
+    
+    **注** Spring Boot为Spock 1.0提供依赖管理，如果希望使用Spock 1.1，你需要覆盖`build.gradle`或`pom.xml`文件中的`spock.version`属性。
+    
+    当使用Spock 1.1时，只能使用[上述注解](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/
+    #boot-features-testing-spring-boot-applications)，你可以使用`@SpringBootTest`注解你的`Specification`以满足测试需求。
+    
+    当使用Spock 1.0时，`@SpringBootTest`将不能用于web项目，你需要使用`@SpringApplicationConfiguration`和`@WebIntegrationTest(randomPort = true)`。
+    不能使用`@SpringBootTest`也就意味着你失去了自动配置的`TestRestTemplate` bean，不过可以通过以下配置创建一个等价的bean：
+    ```java
+    @Configuration
+    static class TestRestTemplateConfiguration {
+    
+        @Bean
+        public TestRestTemplate testRestTemplate(
+                ObjectProvider<RestTemplateBuilder> builderProvider,
+                Environment environment) {
+            RestTemplateBuilder builder = builderProvider.getIfAvailable();
+            TestRestTemplate template = builder == null ? new TestRestTemplate()
+                    : new TestRestTemplate(builder.build());
+            template.setUriTemplateHandler(new LocalHostUriTemplateHandler(environment));
+            return template;
+        }
+    
+    }
+    ```
+
+###40.3 测试Spring Boot应用
+
+    Spring Boot应用只是一个Spring `ApplicationContext`，所以在测试时对它只需要像处理普通Spring context那样即可。唯一需要注意的是，
+    如果你使用`SpringApplication`创建上下文，外部配置，日志和Spring Boot的其他特性只会在默认的上下文中起作用。
+    
+    Spring Boot提供一个`@SpringApplicationConfiguration`注解用于替换标准的`spring-test` `@ContextConfiguration`注解，
+    该组件工作方式是通过`SpringApplication`创建用于测试的`ApplicationContext`。
+    
+    你可以使用`@SpringBootTest`的`webEnvironment`属性定义怎么运行测试：
+    
+    * `MOCK` - 加载`WebApplicationContext`，并提供一个mock servlet环境，使用该注解时内嵌servlet容器将不会启动。如果classpath下
+    不存在servlet APIs，该模式将创建一个常规的non-web `ApplicationContext`。
+    
+    * `RANDOM_PORT` - 加载`EmbeddedWebApplicationContext`，并提供一个真实的servlet环境。使用该模式内嵌容器将启动，并监听在一个随机端口。
+    
+    * `DEFINED_PORT` - 加载`EmbeddedWebApplicationContext`，并提供一个真实的servlet环境。使用该模式内嵌容器将启动，并监听一个
+    定义好的端口（比如`application.properties`中定义的或默认的`8080`端口）。
+    
+    * `NONE` - 使用`SpringApplication`加载一个`ApplicationContext`，但不提供任何servlet环境（不管是mock还是其他）。
+    
+    **注** 不要忘记在测试用例上添加`@RunWith(SpringRunner.class)`，否则该注解将被忽略。
+
+
+###40.4.1 ConfigFileApplicationContextInitializer
+
+    `ConfigFileApplicationContextInitializer`是一个`ApplicationContextInitializer`，可在测试类中用于加载Spring Boot的
+    `application.properties`文件。当不需要使用`@SpringBootTest`提供的全部特性时，你可以使用它。
+    
+    ```java
+    @ContextConfiguration(classes = Config.class,initializers = ConfigFileApplicationContextInitializer.class)
+    ```
+    **注** 单独使用`ConfigFileApplicationContextInitializer`不会提供`@Value("${…}")`注入支持，它只负责确保
+    `application.properties`文件加载进Spring的`Environment`。为了`@Value`支持，你需要额外配置一个`PropertySourcesPlaceholderConfigurer`
+    或使用`@SpringBootTest`为你自动配置一个。
+
+
+###40.4.2 EnvironmentTestUtils
+
+    使用简单的`key=value`字符串调用`EnvironmentTestUtils`就可以快速添加属性到`ConfigurableEnvironment`或`ConfigurableApplicationContext`：
+    ```java
+    EnvironmentTestUtils.addEnvironment(env, "org=Spring", "name=Boot");
+    
+###40.4.4 TestRestTemplate
+    
+    在集成测试中,`TestRestTemplate`是Spring `RestTemplate`的便利替代。你可以获取一个普通的或发送基本HTTP认证（使用用户名和密码）
+    的模板，不管哪种情况，
+    这些模板都有益于测试：不允许重定向（这样你可以对响应地址进行断言），忽略cookies（这样模板就是无状态的），对于服务端错误不会抛出异常。
+    推荐使用Apache HTTP Client(4.3.2或更高版本)，但不强制这样做，如果相关库在classpath下存在，`TestRestTemplate`将以正确配置的client进行响应。
+    ```java
+    public class MyTest {
+    RestTemplate template = new TestRestTemplate();
+    @Test
+    public void testRequest() throws Exception {
+    HttpHeaders headers = template.getForEntity("http://myhost.com", String.class).getHeaders();
+    assertThat(headers.getLocation().toString(), containsString("myotherhost"));
+    }
+    }
+    ```
+    如果正在使用`@SpringBootTest`，且设置了`WebEnvironment.RANDOM_PORT`或`WebEnvironment.DEFINED_PORT`属性，你可以注入一个
+    配置完全的`TestRestTemplate`，并开始使用它。如果有需要，你还可以通过`RestTemplateBuilder` bean进行额外的自定义：
+    ```java
+    @RunWith(SpringRunner.class)
+    @SpringBootTest
+    public class MyTest {
+    
+        @Autowired
+        private TestRestTemplate template;
+    
+        @Test
+        public void testRequest() throws Exception {
+            HttpHeaders headers = template.getForEntity("http://myhost.com", String.class).getHeaders();
+            assertThat(headers.getLocation().toString(), containsString("myotherhost"));
+        }
+    
+        @TestConfiguration
+        static class Config {
+    
+            @Bean
+            public RestTemplateBuilder restTemplateBuilder() {
+                return new RestTemplateBuilder()
+                    .additionalMessageConverters(...)
+                    .customizers(...);
+            }
+    
+        }
+    
+    }
+    ```
+
+###43. 创建自己的auto-configuration
+
+    如果你在公司里开发共享libraries，或者正在开发一个开源或商业library，你可能想开发自己的自动配置（auto-configuration）。自动配置类
+    可以打包到外部jars，并且依旧可以被Spring Boot识别。自动配置可以关联一个"starter"，用于提供auto-configuration的代码及需要引用的
+    libraries。我们首先讲解构建自己的auto-configuration需要知道哪些内容，然后讲解[创建自定义starter的常见步骤](http://docs.spring
+    .io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/#boot-features-custom-starter)。
+    
+    **注** 可参考[demo工程](https://github.com/snicoll-demos/spring-boot-master-auto-configuration)了解如何一步步创建一个starter。
+    
+###43.1 理解自动配置的beans
+
+    从底层来讲，自动配置（auto-configuration）是通过标准的`@Configuration`类实现的。此外，`@Conditional`注解用来约束自动配置
+    生效的条件。通常自动配置类需要使用`@ConditionalOnClass`和`@ConditionalOnMissingBean`注解，这是为了确保只有在相关的类被发现及
+    没有声明自定义的`@Configuration`时才应用自动配置，具体查看[`spring-boot-autoconfigure`](https://github.com/spring-projects/
+    spring-boot/tree/v1.4.1.RELEASE/spring-boot-autoconfigure/src/main/java/org/springframework/boot/autoconfigure)源码
+    中的`@Configuration`类（`META-INF/spring.factories`文件）。
+
+
+###43.2 定位自动配置候选者
+
+    Spring Boot会检查你发布的jar中是否存在`META-INF/spring.factories`文件，该文件中以`EnableAutoConfiguration`为key的属性应该列出你的配置类：
+    ```java
+    org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+    com.mycorp.libx.autoconfigure.LibXAutoConfiguration,\
+    com.mycorp.libx.autoconfigure.LibXWebAutoConfiguration
+    ```
+    你可以使用[`@AutoConfigureAfter`](http://github.com/spring-projects/spring-boot/tree/master/spring-boot-autoconfigure/
+    src/main/java/org/springframework/boot/autoconfigure/AutoConfigureAfter.java)或[`@AutoConfigureBefore`](http://github
+    .com/spring-projects/spring-boot/tree/master/spring-boot-autoconfigure/src/main/java/org/springframework/boot/
+    autoconfigure/AutoConfigureBefore.java)注解为配置类指定特定的顺序。例如，如果你提供web-specific配置，你的类就需要应用在
+    `WebMvcAutoConfiguration`后面。
+    
+    你也可以使用`@AutoconfigureOrder`注解为那些相互不知道存在的自动配置类提供排序，该注解语义跟常规的`@Order`注解相同，但专为自动配置类提供顺序。
+    
+    **注** 自动配置类只能通过这种方式加载，确保它们定义在一个特殊的package中，特别是不能成为组件扫描的目标。
+    
+       
+###43.3.1 Class条件
+
+    `@ConditionalOnClass`和`@ConditionalOnMissingClass`注解可以根据特定类是否出现来决定配置的包含，由于注解元数据是使用[ASM]
+    (http://asm.ow2.org/)来解析的，所以你可以使用`value`属性来引用真正的类，即使该类没有出现在运行应用的classpath下，也可以使用
+    `name`属性如果你倾向于使用字符串作为类名。
+     
+###43.4 创建自己的starter
+
+    一个完整的Spring Boot starter可能包含以下组件：
+    
+    * `autoconfigure`模块，包含自动配置类的代码。
+    * `starter`模块，提供自动配置模块及其他有用的依赖，简而言之，添加本starter就能开始使用该library。
+    
+    **注** 如果不需要将它们分离开来，你可以将自动配置代码和依赖管理放到一个单一模块中。
+
+     
+        
+        
