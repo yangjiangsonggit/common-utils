@@ -1040,4 +1040,182 @@
     你需要改变它们中的某个路径（Spring MVC可以配置`server.servlet-path`，Jersey可以配置`spring.jersey.application-path`）。
     例如，如果你在`application.properties`中添加`server.servlet-path=/system`，你将在`/system`访问执行器HTTP端点。
 
+### 78.3 当前端使用代理服务器时启用HTTPS
+
+    对于任何应用来说，确保所有的主端点（URL）都只在HTTPS下可用是个重要的苦差事。如果你使用Tomcat作为servlet容器，那Spring Boot
+    如果发现一些环境设置的话，它将自动添加Tomcat自己的`RemoteIpValve`，你也可以依赖于`HttpServletRequest`来报告是否请求是安全的
+    （即使代理服务器的downstream处理真实的SSL终端）。这个标准行为取决于某些请求头是否出现（`x-forwarded-for`和`x-forwarded-proto`）
+    ，这些请求头的名称都是约定好的，所以对于大多数前端和代理都是有效的。
+    
+    你可以向`application.properties`添加以下设置开启该功能，比如：
+    ```yml
+    server.tomcat.remote_ip_header=x-forwarded-for
+    server.tomcat.protocol_header=x-forwarded-proto
+    ```
+    （这些属性出现一个就会开启该功能，或者你可以通过添加一个`TomcatEmbeddedServletContainerFactory` bean自己添加`RemoteIpValve`）。
+    
+    Spring Security也可以配置成针对所有或某些请求需要一个安全渠道（channel）。想要在一个Spring Boot应用中开启它，你只需将
+    `application.properties`中的`security.require_ssl`设置为`true`即可。
+
+
+###80.5 将Spring Boot应用作为依赖
+
+    跟war包一样，Spring Boot应用不是用来作为依赖的。如果你的应用包含需要跟其他项目共享的类，最好的方式是将代码放到单独的模块，
+    然后其他项目及你的应用都可以依赖该模块。
+    
+    如果不能按照上述推荐的方式重新组织代码，你需要配置Spring Boot的Maven和Gradle插件去产生一个单独的artifact，以适合于作为依赖。
+    可执行存档不能用于依赖，因为[可执行jar格式](http://docs.spring.io/spring-boot/docs/1.4.1.RELEASE/reference/htmlsingle/
+    #executable-jar-jar-file-structure)将应用class打包到`BOOT-INF/classes`，也就意味着可执行jar用于依赖时会找不到。
+    
+    为了产生两个artifacts（一个用于依赖，一个用于可执行jar），你需要指定classifier。classifier用于可执行存档的name，默认存档用于依赖。
+    
+    可以使用以下配置Maven中classifier的`exec`：
+    ```xml
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <classifier>exec</classifier>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+    ```
+    使用Gradle可以添加以下配置：
+    ```gradle
+    bootRepackage  {
+        classifier = 'exec'
+    }
+    ```
+
+
+### 80.7 使用排除创建不可执行的JAR
+
+    如果你构建的产物既有可执行的jar和非可执行的jar，那你常常需要为可执行的版本添加额外的配置文件，而这些文件在一个library jar
+    中是不需要的。比如，`application.yml`配置文件可能需要从非可执行的JAR中排除。
+    
+    下面是如何在Maven中实现：
+    ```xml
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <classifier>exec</classifier>
+                </configuration>
+            </plugin>
+            <plugin>
+                <artifactId>maven-jar-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>exec</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>exec</classifier>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <!-- Need this to ensure application.yml is excluded -->
+                            <forceCreation>true</forceCreation>
+                            <excludes>
+                                <exclude>application.yml</exclude>
+                            </excludes>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+    ```
+    在Gradle中，你可以使用标准任务的DSL（领域特定语言）特性创建一个新的JAR存档，然后在`bootRepackage`任务中使用`withJarTask`
+    属性添加对它的依赖：
+    ```gradle
+    jar {
+        baseName = 'spring-boot-sample-profile'
+        version =  '0.0.0'
+        excludes = ['**/application.yml']
+    }
+    
+    task('execJar', type:Jar, dependsOn: 'jar') {
+        baseName = 'spring-boot-sample-profile'
+        version =  '0.0.0'
+        classifier = 'exec'
+        from sourceSets.main.output
+    }
+    
+    bootRepackage  {
+        withJarTask = tasks['execJar']
+    }
+    ```
+    
+    
+### 81.1 创建可部署的war文件
+
+    产生一个可部署war包的第一步是提供一个`SpringBootServletInitializer`子类，并覆盖它的`configure`方法，这充分利用了Spring框架
+    对Servlet 3.0的支持，并允许你在应用通过servlet容器启动时配置它。通常，你只需把应用的主类改为继承`SpringBootServletInitializer`即可：
+    ```java
+    @SpringBootApplication
+    public class Application extends SpringBootServletInitializer {
+    
+        @Override
+        protected SpringApplicationBuilder configure(SpringApplicationBuilder application) {
+            return application.sources(Application.class);
+        }
+    
+        public static void main(String[] args) throws Exception {
+            SpringApplication.run(Application.class, args);
+        }
+    
+    }
+    ```
+    下一步是更新你的构建配置，这样你的项目将产生一个war包而不是jar包。如果你使用Maven，并使用`spring-boot-starter-parent`
+    （为了配置Maven的war插件），所有你需要做的就是更改`pom.xml`的打包方式为`war`：
+    ```xml
+    <packaging>war</packaging>
+    ```
+    如果你使用Gradle，你需要修改`build.gradle`来将war插件应用到项目上：
+    ```gradle
+    apply plugin: 'war'
+    ```
+    该过程最后的一步是确保内嵌的servlet容器不能干扰war包将部署的servlet容器。为了达到这个目的，你需要将内嵌容器的依赖标记为`provided`。
+    
+    如果使用Maven：
+    ```xml
+    <dependencies>
+        <!-- … -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <!-- … -->
+    </dependencies>
+    ```
+    如果使用Gradle：
+    ```gradle
+    dependencies {
+        // …
+        providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat'
+        // …
+    }
+    ```
+    如果你使用[Spring Boot构建工具](../VIII. Build tool plugins/README.md)，将内嵌容器依赖标记为`provided`将产生一个可执行war包，
+    在`lib-provided`目录有该war包的`provided`依赖。这意味着，除了部署到servlet容器，你还可以通过使用命令行`java -jar`命令来运行应用。
+    
+    **注** 查看Spring Boot基于以上配置的一个[Maven示例应用](http://github.com/spring-projects/spring-boot/tree/master/
+    spring-boot-samples/spring-boot-sample-traditional/pom.xml)。
+
+
+
 
