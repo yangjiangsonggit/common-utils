@@ -1,4 +1,4 @@
-package com.yjs.commonutils.kafka08;
+package com.yjs.commonutils.mq.kafka08;
 
 import kafka.consumer.ConsumerIterator;
 import kafka.consumer.KafkaStream;

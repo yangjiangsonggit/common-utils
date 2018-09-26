@@ -1,4 +1,4 @@
-package com.yjs.commonutils.kafka08;
+package com.yjs.commonutils.mq.kafka08;
 
 import com.google.common.collect.Lists;
 import java.util.List;
