@@ -1,3 +1,7 @@
+##elastic-job的原理简介和使用
+
+https://blog.csdn.net/fanfan_v5/article/details/61310045
+
 elastic-job是当当开源的一款非常好用的作业框架，在这之前，我们开发定时任务一般都是使用quartz或者spring-task（ScheduledExecutorService），无论是使用quartz还是spring-task，我们都会至少遇到两个痛点：
 1.不敢轻易跟着应用服务多节点部署，可能会重复多次执行而引发系统逻辑的错误。
 2.quartz的集群仅仅只是用来HA，节点数量的增加并不能给我们的每次执行效率带来提升，即不能实现水平扩展。
@@ -94,8 +98,8 @@ Step3. Spring配置
                    base-sleep-time-milliseconds="1000" max-sleep-time-milliseconds="3000" max-retries="3" />
  
     <!-- 配置作业-->
-    <job:simple id="mySimpleJob" class="com.fanfan.sample001.MySimpleJob" registry-center-ref="regCenter"
-                sharding-total-count="2" cron="0/2 * * * * ?" overwrite="true" />
+    <job:simple id="mySimpleJob" class="com.fanfan.sample001.MySimpleJob" registry-center-ref="regCenter"
+                sharding-total-count="2" cron="0/2 * * * * ?" overwrite="true" />
  
 </beans>
 
@@ -184,4 +188,3 @@ public class MyDataFlowJob implements DataflowJob<User> {
 
 <job:dataflow id="myDataFlowJob" class="com.fanfan.sample001.MyDataFlowJob" registry-center-ref="regCenter"
               sharding-total-count="2" cron="0 0 02 * * ?" streaming-process="true" overwrite="true" />
-
