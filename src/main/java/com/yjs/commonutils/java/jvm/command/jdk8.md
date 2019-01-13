@@ -1,3 +1,15 @@
+假设tomcat进程PID为16818
+
+确认是不是内存本身分配过小:jmap -heap 16818
+
+找到最耗内存的对象:jmap -histo 16818 (带上:live则表示先进行一次FGC再统计,如jmap -histo:live16818)
+
+导出内存转储快照:jmap -dump:live,format=b,file=heap.bin 16818 (使用Eclipse mat分析)
+
+统计进程打开的句柄数:ls /proc/16818/fd |wc -l
+
+#统计进程打开的线程数:ls /proc/16818/task |wc -l   top -Hp pid
+
 jstat命令可以查看堆内存各部分的使用量，以及加载类的数量。命令的格式如下：
 
 jstat [-命令选项] [vmid] [间隔时间/毫秒] [查询次数]
