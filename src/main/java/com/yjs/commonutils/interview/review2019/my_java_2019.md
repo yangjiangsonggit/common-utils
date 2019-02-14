@@ -222,30 +222,158 @@
      //返回值为boolean
      AtomicInteger.compareAndSet(int expect,int update)
      该方法可用于实现乐观锁
- 
      
      
      
+     *Lock类　
+      lock: 在java.util.concurrent包内。共有三个实现：
+      
+      ReentrantLock
+      ReentrantReadWriteLock.ReadLock
+      ReentrantReadWriteLock.WriteLock
+      
+      主要目的是和synchronized一样， 两者都是为了解决同步问题，处理资源争端而产生的技术。功能类似但有一些区别。
+      
+      区别如下：
+      
+      复制代码
+      lock更灵活，可以自由定义多把锁的枷锁解锁顺序（synchronized要按照先加的后解顺序）
+      提供多种加锁方案，lock 阻塞式, trylock 无阻塞式, lockInterruptily 可打断式， 还有trylock的带超时时间版本。
+     
+     
+     ReentrantReadWriteLock
+     
+     可重入读写锁（读写锁的一个实现）　
+     
+     　ReentrantReadWriteLock lock = new ReentrantReadWriteLock()
+     　　ReadLock r = lock.readLock();
+     　　WriteLock w = lock.writeLock();
+     两者都有lock,unlock方法。写写，写读互斥；读读不互斥。可以实现并发读的高效线程安全代码
+     
+     
+     *容器类
+     这里就讨论比较常用的两个：
+     
+     BlockingQueue
+     ConcurrentHashMap
      
      
      
+     *管理类
+     管理类的概念比较泛，用于管理线程，本身不是多线程的，但提供了一些机制来利用上述的工具做一些封装。
+     了解到的值得一提的管理类：ThreadPoolExecutor和 JMX框架下的系统级管理类 ThreadMXBean
+     ThreadPoolExecutor
+     如果不了解这个类，应该了解前面提到的ExecutorService，开一个自己的线程池非常方便：
+     
+     复制代码
+     ExecutorService e = Executors.newCachedThreadPool();
+         ExecutorService e = Executors.newSingleThreadExecutor();
+         ExecutorService e = Executors.newFixedThreadPool(3);
+         // 第一种是可变大小线程池，按照任务数来分配线程，
+         // 第二种是单线程池，相当于FixedThreadPool(1)
+         // 第三种是固定大小线程池。
+         // 然后运行
+         e.execute(new MyRunnableImpl());
+         
      
      
      
+     *读写锁
+     https://blog.csdn.net/zwjyyy1203/article/details/80231303
      
      
+     *CountDownLatch
      
+     　　CountDownLatch可以理解为一个计数器在初始化时设置初始值，当一个线程需要等待某些操作先完成时，需要调用await()方法。
+        这个方法让线程进入休眠状态直到等待的所有线程都执行完成。每调用一次countDown()方法，内部计数器减1，直到计数器为0时唤醒。
+        这个可以理解为特殊的CyclicBarrier。
      
+        使用场景
+        
+        有时候会有这样的需求，多个线程同时工作，然后其中几个可以随意并发执行，但有一个线程需要等其他线程工作结束后，
+        才能开始。举个例子，开启多个线程分块下载一个大文件，每个线程只下载固定的一截，最后由另外一个线程来拼接所有的分段，
+        那么这时候我们可以考虑使用CountDownLatch来控制并发。
+        
      
-     
-     
-     
-     
-     
-     
-     
-     
-     
+    
+## 7.线程池
+
+
+    由浅入深理解Java线程池及线程池的如何使用
+    https://www.cnblogs.com/superfj/p/7544971.html
+    
+    线程池参数及拒绝策略 
+    https://blog.csdn.net/wang_rrui/article/details/78541786
+    
+    
+## 8.面试题
+
+    Java高级工程师面试题总结及参考答案
+    https://www.cnblogs.com/cxxjohnson/p/10118067.html
+    
+    限流，分布式锁，UUID
+    我现在要做一个限流功能, 怎么做?
+    令牌桶
+    这个限流要做成分布式的, 怎么做?
+    令牌桶维护到 Redis 里，每个实例起一个线程抢锁，抢到锁的负责定时放令牌
+    怎么抢锁?
+    Redis setnx
+    锁怎么释放?
+    抢到锁后设置过期时间，线程本身退出时主动释放锁，假如线程卡住了，锁过期那么其它线程可以继续抢占
+    加了超时之后有没有可能在没有释放的情况下, 被人抢走锁
+    有可能，单次处理时间过长，锁泄露
+    怎么解决?
+    换 zk，用心跳解决
+    不用 zk 的心跳, 可以怎么解决这个问题呢?
+    每次更新过期时间时，Redis 用 MULTI 做 check-and-set 检查更新时间是否被其他线程修改了，假如被修改了，说明锁已经被抢走，放弃这把锁
+    假如这个限流希望做成可配置的, 需要有一个后台管理系统随意对某个 api 配置全局流量, 怎么做？
+    在 Redis 里存储每个 API 的令牌桶 key，假如存在这个 key，则需要按上述逻辑进行限流
+    某一个业务中现在需要生成全局唯一的递增 ID, 并发量非常大, 怎么做
+    snowflake (这个其实答得不好，snowflake 无法实现全局递增，只能实现全局唯一，单机递增，面试结束后就想到了类似 TDDL 那样一次取一个 ID 段，放在本地慢慢分配的策略）
+    算法题, M*N 横向递增矩阵找指定数
+    只想到 O(M+N)的解法
+    
+    Java 中 HashMap 的存储, 冲突, 扩容, 并发访问分别是怎么解决的
+    Hash 表，拉链法（长度大于8变形为红黑树）,扩容*2 rehash，并发访问不安全
+    
+    拉链法中链表过长时变形为红黑树有什么优缺点?
+    优点：O(LogN) 的读取速度更快；缺点：插入时有 Overhead，O(LogN) 插入，旋转维护平衡
+    HashMap 的并发不安全体现在哪?
+    拉链法解决冲突，插入链表时不安全，并发操作可能导致另一个插入失效
+    https://www.cnblogs.com/qiumingcheng/p/5259892.html
+    
+    HashMap 在扩容时, 对读写操作有什么特殊处理?
+    
+    知道 CAS 吗? Java 中 CAS 是怎么实现的?
+    Compare and Swap，一种乐观锁的实现，可以称为"无锁"(lock-free)，CAS 由于要保证原子性无法由 JVM 本身实现，
+    需要调用对应 OS 的指令(这块其实我不了解细节)
+    
+    
+## 9.设计模式
+    
+    策略模式
+    https://www.cnblogs.com/lewis0077/p/5133812.html
+    
+## 10.网络等基础
+
+    TCP和UDP的区别和优缺点
+    https://blog.csdn.net/xiaobangkuaipao/article/details/76793702
+    
+    TCP三次握手与四次挥手过程
+    https://blog.csdn.net/qq_35216516/article/details/80554575
+    
+    TCP 有哪些状态
+    https://www.cnblogs.com/qingergege/p/6603488.html
+    
+    HTTP与HTTPS的区别
+    https://www.cnblogs.com/wqhwe/p/5407468.html
+
+## 11.spring
+
+    
+
+
+    
      
      
      
