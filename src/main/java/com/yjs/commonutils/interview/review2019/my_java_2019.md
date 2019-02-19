@@ -407,6 +407,40 @@
 
 ## 12.spring
 
+    bean生命周期
+        Spring容器初始化
+        =====================================
+        调用GiraffeService无参构造函数
+        GiraffeService中利用set方法设置属性值
+        调用setBeanName:: Bean Name defined in context=giraffeService
+        调用setBeanClassLoader,ClassLoader Name = sun.misc.Launcher$AppClassLoader
+        调用setBeanFactory,setBeanFactory:: giraffe bean singleton=true
+        调用setEnvironment
+        调用setResourceLoader:: Resource File Name=spring-beans.xml
+        调用setApplicationEventPublisher
+        调用setApplicationContext:: Bean Definition Names=[giraffeService, org.springframework.context.annotation.CommonAnnotationBeanPostProcessor#0, com.giraffe.spring.service.GiraffeServicePostProcessor#0]
+        执行BeanPostProcessor的postProcessBeforeInitialization方法,beanName=giraffeService
+        调用PostConstruct注解标注的方法
+        执行InitializingBean接口的afterPropertiesSet方法
+        执行配置的init-method
+        执行BeanPostProcessor的postProcessAfterInitialization方法,beanName=giraffeService
+        Spring容器初始化完毕
+        =====================================
+        从容器中获取Bean
+        giraffe Name=李光洙
+        =====================================
+        调用preDestroy注解标注的方法
+        执行DisposableBean接口的destroy方法
+        执行配置的destroy-method
+        Spring容器关闭
+            
+            
+            
+    对于作用域为 prototype 的 bean ，其destroy方法并没有被调用。如果 bean 的 scope 设为prototype时，当容器关闭时，
+    destroy 方法不会被调用。对于 prototype 作用域的 bean，有一点非常重要，
+    那就是 Spring不能对一个 prototype bean 的整个生命周期负责：容器在初始化、配置、装饰或者是装配完一个prototype实例后，
+    将它交给客户端，随后就对该prototype实例不闻不问了
+
     spring 官方文档中文版
     https://blog.csdn.net/tangtong1/article/details/51326887
 
@@ -469,6 +503,7 @@
         global-session	该作用域将 bean 的定义限制为全局 HTTP 会话。只在 web-aware Spring ApplicationContext 的上下文中有效。
         
     Bean 的生命周期
+    https://github.com/crossoverJie/JCSprout/blob/master/MD/spring/spring-bean-lifecycle.md
     
         nit-method
         destroy-method
@@ -498,14 +533,133 @@
     
         
 
+     Spring 中的事件处理
+     
+         ContextRefreshedEvent
+         ApplicationContext 被初始化或刷新时，该事件被发布。这也可以在 ConfigurableApplicationContext 接口中使用 refresh() 方法来发生。
+         
+         ContextStartedEvent
+         当使用 ConfigurableApplicationContext 接口中的 start() 方法启动 ApplicationContext 时，该事件被发布。你可以调查你的数据库，或者你可以在接受到这个事件后重启任何停止的应用程序。
+         
+         ContextStoppedEvent
+         当使用 ConfigurableApplicationContext 接口中的 stop() 方法停止 ApplicationContext 时，发布这个事件。你可以在接受到这个事件后做必要的清理的工作。
+         
+         ContextClosedEvent
+         当使用 ConfigurableApplicationContext 接口中的 close() 方法关闭 ApplicationContext 时，该事件被发布。一个已关闭的上下文到达生命周期末端；它不能被刷新或重启。
+         
+         RequestHandledEvent
+         这是一个 web-specific 事件，告诉所有 bean HTTP 请求已经被服务。
      
      
+     Spring 框架的 AOP
+        
+        @AspectJ
+        <aop:aspectj-autoproxy/>
+        
+        通知的类型
+        Spring 方面可以使用下面提到的五种通知工作：
+        
+        通知	        描述
+        前置通知	在一个方法执行之前，执行通知。
+        后置通知	在一个方法执行之后，不考虑其结果，执行通知。
+        返回后通知	在一个方法执行之后，只有在方法成功完成时，才能执行通知。
+        抛出异常后通知	在一个方法执行之后，只有在方法退出抛出异常时，才能执行通知。
+        环绕通知	在建议方法调用之前和之后，执行通知。
+     
+     JdbcTemplate
+        
+     编程式事务管理
+        TransactionDefinition def = new DefaultTransactionDefinition();
+        TransactionStatus status = transactionManager.getTransaction(def);
+        transactionManager.commit(status);
+        transactionManager.rollback(status);
      
      
+     Spring web MVC 
+        框架提供了模型-视图-控制的体系结构和可以用来开发灵活、松散耦合的 web 应用程序的组件。
+        
+        DispatcherServlet
+            HandlerMapping、Controller 和 ViewResolver 是 WebApplicationContext 的一部分，
+            而 WebApplicationContext 是带有一些对 web 应用程序必要的额外特性的 ApplicationContext 的扩展。
+            
+            
+     SpringMVC 流程
+        流程说明（重要）：
+        
+        （1）客户端（浏览器）发送请求，直接请求到 DispatcherServlet。
+        
+        （2）DispatcherServlet 根据请求信息调用 HandlerMapping，解析请求对应的 Handler。
+        
+        （3）解析到对应的 Handler（也就是我们平常说的 Controller 控制器）后，开始由 HandlerAdapter 适配器处理。
+        
+        （4）HandlerAdapter 会根据 Handler 来调用真正的处理器开处理请求，并处理相应的业务逻辑。
+        
+        （5）处理器处理完业务后，会返回一个 ModelAndView 对象，Model 是返回的数据对象，View 是个逻辑上的 View。
+        
+        （6）ViewResolver 会根据逻辑 View 查找实际的 View。
+        
+        （7）DispaterServlet 把返回的 Model 传给 View（视图渲染）。
+        
+        （8）把 View 返回给请求者（浏览器）
+        
+        
+     SpringMVC 重要组件说明
+     1、前端控制器DispatcherServlet（不需要工程师开发）,由框架提供（重要）
+     
+     作用：Spring MVC 的入口函数。接收请求，响应结果，相当于转发器，中央处理器。有了 DispatcherServlet 减少了其它组件之间的耦合度。
+     用户请求到达前端控制器，它就相当于mvc模式中的c，DispatcherServlet是整个流程控制的中心，由它调用其它组件处理用户的请求，
+     DispatcherServlet的存在降低了组件之间的耦合性。
+     
+     2、处理器映射器HandlerMapping(不需要工程师开发),由框架提供
+     
+     作用：根据请求的url查找Handler。HandlerMapping负责根据用户请求找到Handler即处理器（Controller），
+     SpringMVC提供了不同的映射器实现不同的映射方式，例如：配置文件方式，实现接口方式，注解方式等。
+     
+     3、处理器适配器HandlerAdapter
+     
+     作用：按照特定规则（HandlerAdapter要求的规则）去执行Handler 通过HandlerAdapter对处理器进行执行，这是适配器模式的应用，
+     通过扩展适配器可以对更多类型的处理器进行执行。
+     
+     4、处理器Handler(需要工程师开发)
+     
+     注意：编写Handler时按照HandlerAdapter的要求去做，这样适配器才可以去正确执行Handler Handler 是继DispatcherServlet前端控制器的
+     后端控制器，在DispatcherServlet的控制下Handler对具体的用户请求进行处理。 由于Handler涉及到具体的用户业务请求，
+     所以一般情况需要工程师根据业务需求开发Handler。
+     
+     5、视图解析器View resolver(不需要工程师开发),由框架提供
+     
+     作用：进行视图解析，根据逻辑视图名解析成真正的视图（view） View Resolver负责将处理结果生成View视图，View Resolver首先
+     根据逻辑视图名解析成物理视图名即具体的页面地址，再生成View视图对象，最后对View进行渲染将处理结果通过页面展示给用户。 
+     springmvc框架提供了很多的View视图类型，包括：jstlView、freemarkerView、pdfView等。 一般情况下需要通过页面标签或
+     页面模版技术将模型数据通过页面展示给用户，需要由工程师根据业务需求开发具体的页面。
+     
+     6、视图View(需要工程师开发)
+     
+     View是一个接口，实现类支持不同的View类型（jsp、freemarker、pdf...）
+     
+     注意：处理器Handler（也就是我们平常说的Controller控制器）以及视图层view都是需要我们自己手动开发的。其他的一些组件比如：前端控制器
+     DispatcherServlet、处理器映射器HandlerMapping、处理器适配器HandlerAdapter等等都是框架提供给我们的，不需要自己手动开发。
      
      
+     问题:AOP实现原理、动态代理和静态代理、Spring IOC的初始化过程、IOC原理、自己实现怎么实现一个IOC容器？
+     
+     *Spirng IoC容器的初始化过程
+     https://www.cnblogs.com/chenjunjie12321/p/6124649.html
+     
+        分为三步：
+        
+        1.Resource定位（Bean的定义文件定位）
+        2.将Resource定位好的资源载入到BeanDefinition
+        3.将BeanDefiniton注册到容器中
+        
+     *Spring aop 原理(代理模式)
+        https://www.cnblogs.com/lcngu/p/5339555.html
+        
+        
+        
+        
+
      
      
-     
-     
+    
      
