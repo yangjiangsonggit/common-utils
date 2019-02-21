@@ -410,7 +410,7 @@
 
 ## 12.spring
 
-    bean生命周期
+    *bean生命周期
         Spring容器初始化
         =====================================
         调用GiraffeService无参构造函数
@@ -508,7 +508,7 @@
     Bean 的生命周期
     https://github.com/crossoverJie/JCSprout/blob/master/MD/spring/spring-bean-lifecycle.md
     
-        nit-method
+        init-method
         destroy-method
         //默认
         default-init-method
@@ -554,7 +554,7 @@
          这是一个 web-specific 事件，告诉所有 bean HTTP 请求已经被服务。
      
      
-     Spring 框架的 AOP
+     *Spring 框架的 AOP
         
         @AspectJ
         <aop:aspectj-autoproxy/>
@@ -586,7 +586,7 @@
             而 WebApplicationContext 是带有一些对 web 应用程序必要的额外特性的 ApplicationContext 的扩展。
             
             
-     SpringMVC 流程
+     *SpringMVC 流程
         流程说明（重要）：
         
         （1）客户端（浏览器）发送请求，直接请求到 DispatcherServlet。
@@ -658,7 +658,13 @@
      *Spring aop 原理(代理模式)
         https://www.cnblogs.com/lcngu/p/5339555.html
         
-
+     *总结
+        1.bean的生命周期?
+        2.ioc容器初始化流程?
+        3.spring模块划分?
+        4.spring事件类型?
+        5.aop通知类型,原理?
+        6.SpringMVC流程?
 
 ##14 kafka
 
@@ -908,7 +914,7 @@
             并且在当前其他consumer的心跳response中添加“REBALANCE_IN_PROGRESS”，告诉其他consumer：不好意思各位，你们重新申请加入组吧！
             
         
-        Rebalance过程
+        *Rebalance过程
         
             终于说到consumer group执行rebalance的具体流程了。很多用户估计对consumer内部的工作机制也很感兴趣。
             下面就跟大家一起讨论一下。当然我必须要明确表示，rebalance的前提是coordinator已经确定了。
@@ -1094,23 +1100,60 @@
     
         批处理是一种常用的用于提高I/O性能的方式。对Kafka而言，批处理既减少了网络传输的Overhead，又提高了写磁盘的效率。
     
+    选举
+    https://blog.csdn.net/qq_27384769/article/details/80115392
+        Kafka 集群controller的选举过程如下 ：
+            每个Broker都会在Controller Path (/controller)上注册一个Watch。
+            当前Controller失败时，对应的Controller Path会自动消失（因为它是ephemeral Node），此时该Watch被fire，所有“活”着的Broker都会去竞选成为新的Controller（创建新的Controller Path),但是只会有一个竞选成功（这点由Zookeeper保证）。
+            竞选成功者即为新的Leader，竞选失败者则重新在新的Controller Path上注册Watch。因为Zookeeper的Watch是一次性的，被fire一次之后即失效，所以需要重新注册。
+        
+        Kafka partition leader的选举过程如下 (由controller执行)：
+            从Zookeeper中读取当前分区的所有ISR(in-sync replicas)集合
+            调用配置的分区选择算法选择分区的leader
+        
+    
+    
     数据压缩降低网络负载
     
         Kafka从0.7开始，即支持将数据压缩后再传输给Broker。除了可以将每条消息单独压缩然后传输外，Kafka还支持在批量发送时，
         将整个Batch的消息一起压缩后传输。数据压缩的一个基本原理是，重复数据越多压缩效果越好。
         因此将整个Batch的数据一起压缩能更大幅度减小数据量，从而更大程度提高网络传输效率。
         
-    
+    *ISR机制(in-sync Replica)
+    https://blog.csdn.net/qq_37502106/article/details/80271800
+        kafka不是完全同步，也不是完全异步，是一种ISR机制： 
+            1. leader会维护一个与其基本保持同步的Replica列表，该列表称为ISR(in-sync Replica)，每个Partition都会有一个ISR，而且是由leader动态维护 
+            2. 如果一个flower比一个leader落后太多，或者超过一定时间未发起数据复制请求，则leader将其重ISR中移除 
+            3. 当ISR中所有Replica都向Leader发送ACK时，leader才commit
+        
     kafka进阶
         https://mp.weixin.qq.com/s/3i51S1jDXbqvi6fv1cuQSg?
         https://www.infoq.cn/article/kafka-analysis-part-1
         https://blog.csdn.net/stark_summer/article/details/50203133(kafka性能参数和压力测试揭秘)
         http://zqhxuyuan.github.io/2017/12/31/Kafka-Book-Resources/(Kafka技术内幕拾遗)
     
+    *总结:
+        1.为什么要使用消息系统?
+        2.生产者发送流程?常用参数及意义?
+        3.为什么要用消费者组?
+        4.什么是rebalance?触发rebalance的情况?消费者组内分配分区的策略?谁负责管理rebalance和消费者组?
+        5.如何确定coordinator?使用了哪些协议?
+        6.consumer group状态机?
+        7.controller选举?主题分区Leader节点的选举过程?
+        8.分区和副本是在何处，以怎样的方式分配给Broker。
+        9.kafka的Controller接收到Zookeeper的通知后做了哪些处理。
+        10.分区的leader和follower是如何选举的。
+        11.Data Replication何时Commit？
+        12.Data Replication如何处理Replica恢复
+        13.Data Replication如何处理Replica全部宕机
+        
+        
+    
 ##14 ZooKeeper
 
     ZooKeeper 概览
     https://github.com/llohellohe/zookeeper/blob/master/docs/overview.md
+    https://www.jianshu.com/p/eec133595c68
     
         ZooKeeper 是一个典型的分布式数据一致性解决方案，分布式应用程序可以基于 ZooKeeper 实现诸如数据发布/订阅、负载均衡、
         命名服务、分布式协调/通知、集群管理、Master 选举、分布式锁和分布式队列等功能。
@@ -1465,15 +1508,21 @@
         
         　　2. 初始化选票。在开始进行新一轮投票之前，每个服务器都会初始化自身的选票，并且在初始化阶段，每台服务器都会将自己推举为Leader。
         
-        　　3. 发送初始化选票。完成选票的初始化后，服务器就会发起第一次投票。Zookeeper会将刚刚初始化好的选票放入sendqueue中，由发送器WorkerSender负责发送出去。
+        　　3. 发送初始化选票。完成选票的初始化后，服务器就会发起第一次投票。Zookeeper会将刚刚初始化好的选票放入sendqueue中，
+            由发送器WorkerSender负责发送出去。
         
-        　　4. 接收外部投票。每台服务器会不断地从recvqueue队列中获取外部选票。如果服务器发现无法获取到任何外部投票，那么就会立即确认自己是否和集群中其他服务器保持着有效的连接，如果没有连接，则马上建立连接，如果已经建立了连接，则再次发送自己当前的内部投票。
+        　　4. 接收外部投票。每台服务器会不断地从recvqueue队列中获取外部选票。如果服务器发现无法获取到任何外部投票，
+            那么就会立即确认自己是否和集群中其他服务器保持着有效的连接，如果没有连接，则马上建立连接，如果已经建立了连接，
+            则再次发送自己当前的内部投票。
         
         　　5. 判断选举轮次。在发送完初始化选票之后，接着开始处理外部投票。在处理外部投票时，会根据选举轮次来进行不同的处理。
         
-        　　　　· 外部投票的选举轮次大于内部投票。若服务器自身的选举轮次落后于该外部投票对应服务器的选举轮次，那么就会立即更新自己的选举轮次(logicalclock)，并且清空所有已经收到的投票，然后使用初始化的投票来进行PK以确定是否变更内部投票。最终再将内部投票发送出去。
+        　　　　· 外部投票的选举轮次大于内部投票。若服务器自身的选举轮次落后于该外部投票对应服务器的选举轮次，
+                 那么就会立即更新自己的选举轮次(logicalclock)，并且清空所有已经收到的投票，然后使用初始化的投票来进行
+                 PK以确定是否变更内部投票。最终再将内部投票发送出去。
         
-        　　　　· 外部投票的选举轮次小于内部投票。若服务器接收的外选票的选举轮次落后于自身的选举轮次，那么Zookeeper就会直接忽略该外部投票，不做任何处理，并返回步骤4。
+        　　　　· 外部投票的选举轮次小于内部投票。若服务器接收的外选票的选举轮次落后于自身的选举轮次，
+                 那么Zookeeper就会直接忽略该外部投票，不做任何处理，并返回步骤4。
         
         　　　　· 外部投票的选举轮次等于内部投票。此时可以开始进行选票PK。
         
@@ -1485,13 +1534,17 @@
         
         　　　　· 若两者的ZXID一致，那么就对比两者的SID，若外部投票的SID大，那么就需要变更投票。
         
-        　　7. 变更投票。经过PK后，若确定了外部投票优于内部投票，那么就变更投票，即使用外部投票的选票信息来覆盖内部投票，变更完成后，再次将这个变更后的内部投票发送出去。
+        　　7. 变更投票。经过PK后，若确定了外部投票优于内部投票，那么就变更投票，即使用外部投票的选票信息来覆盖内部投票，
+            变更完成后，再次将这个变更后的内部投票发送出去。
         
-        　　8. 选票归档。无论是否变更了投票，都会将刚刚收到的那份外部投票放入选票集合recvset中进行归档。recvset用于记录当前服务器在本轮次的Leader选举中收到的所有外部投票（按照服务队的SID区别，如{(1, vote1), (2, vote2)...}）。
+        　　8. 选票归档。无论是否变更了投票，都会将刚刚收到的那份外部投票放入选票集合recvset中进行归档。recvset用于记录当前服务器
+            在本轮次的Leader选举中收到的所有外部投票（按照服务队的SID区别，如{(1, vote1), (2, vote2)...}）。
         
-        　　9. 统计投票。完成选票归档后，就可以开始统计投票，统计投票是为了统计集群中是否已经有过半的服务器认可了当前的内部投票，如果确定已经有过半服务器认可了该投票，则终止投票。否则返回步骤4。
+        　　9. 统计投票。完成选票归档后，就可以开始统计投票，统计投票是为了统计集群中是否已经有过半的服务器认可了当前的内部投票，
+            如果确定已经有过半服务器认可了该投票，则终止投票。否则返回步骤4。
         
-        　　10. 更新服务器状态。若已经确定可以终止投票，那么就开始更新服务器状态，服务器首选判断当前被过半服务器认可的投票所对应的Leader服务器是否是自己，若是自己，则将自己的服务器状态更新为LEADING，若不是，则根据具体情况来确定自己是FOLLOWING或是OBSERVING。
+        　　10. 更新服务器状态。若已经确定可以终止投票，那么就开始更新服务器状态，服务器首选判断当前被过半服务器认可的投票所对应的
+            Leader服务器是否是自己，若是自己，则将自己的服务器状态更新为LEADING，若不是，则根据具体情况来确定自己是FOLLOWING或是OBSERVING。
         
         　　以上10个步骤就是FastLeaderElection的核心，其中步骤4-9会经过几轮循环，直到有Leader选举产生。
         
@@ -1510,9 +1563,19 @@
         
         　　　　· lastMessageSent：最近发送过的消息，为每个SID保留最近发送过的一个消息。
         
-        　　(2) 建立连接。为了能够相互投票，Zookeeper集群中的所有机器都需要两两建立起网络连接。QuorumCnxManager在启动时会创建一个ServerSocket来监听Leader选举的通信端口(默认为3888)。开启监听后，Zookeeper能够不断地接收到来自其他服务器的创建连接请求，在接收到其他服务器的TCP连接请求时，会进行处理。为了避免两台机器之间重复地创建TCP连接，Zookeeper只允许SID大的服务器主动和其他机器建立连接，否则断开连接。在接收到创建连接请求后，服务器通过对比自己和远程服务器的SID值来判断是否接收连接请求，如果当前服务器发现自己的SID更大，那么会断开当前连接，然后自己主动和远程服务器建立连接。一旦连接建立，就会根据远程服务器的SID来创建相应的消息发送器SendWorker和消息接收器RecvWorker，并启动。
+        　　(2) 建立连接。为了能够相互投票，Zookeeper集群中的所有机器都需要两两建立起网络连接。QuorumCnxManager在启动时会创建一个
+                ServerSocket来监听Leader选举的通信端口(默认为3888)。开启监听后，Zookeeper能够不断地接收到来自其他服务器的创建连接请求，
+                在接收到其他服务器的TCP连接请求时，会进行处理。为了避免两台机器之间重复地创建TCP连接，Zookeeper只允许SID大的服务器主动
+                和其他机器建立连接，否则断开连接。在接收到创建连接请求后，服务器通过对比自己和远程服务器的SID值来判断是否接收连接请求，
+                如果当前服务器发现自己的SID更大，那么会断开当前连接，然后自己主动和远程服务器建立连接。一旦连接建立，
+                就会根据远程服务器的SID来创建相应的消息发送器SendWorker和消息接收器RecvWorker，并启动。
         
-        　　(3) 消息接收与发送。消息接收：由消息接收器RecvWorker负责，由于Zookeeper为每个远程服务器都分配一个单独的RecvWorker，因此，每个RecvWorker只需要不断地从这个TCP连接中读取消息，并将其保存到recvQueue队列中。消息发送：由于Zookeeper为每个远程服务器都分配一个单独的SendWorker，因此，每个SendWorker只需要不断地从对应的消息发送队列中获取出一个消息发送即可，同时将这个消息放入lastMessageSent中。在SendWorker中，一旦Zookeeper发现针对当前服务器的消息发送队列为空，那么此时需要从lastMessageSent中取出一个最近发送过的消息来进行再次发送，这是为了解决接收方在消息接收前或者接收到消息后服务器挂了，导致消息尚未被正确处理。同时，Zookeeper能够保证接收方在处理消息时，会对重复消息进行正确的处理。
+        　　(3) 消息接收与发送。消息接收：由消息接收器RecvWorker负责，由于Zookeeper为每个远程服务器都分配一个单独的RecvWorker，
+                因此，每个RecvWorker只需要不断地从这个TCP连接中读取消息，并将其保存到recvQueue队列中。消息发送：
+                由于Zookeeper为每个远程服务器都分配一个单独的SendWorker，因此，每个SendWorker只需要不断地从对应的消息发送队列中
+                获取出一个消息发送即可，同时将这个消息放入lastMessageSent中。在SendWorker中，一旦Zookeeper发现针对当前服务器的
+                消息发送队列为空，那么此时需要从lastMessageSent中取出一个最近发送过的消息来进行再次发送，这是为了解决接收方在消息
+                接收前或者接收到消息后服务器挂了，导致消息尚未被正确处理。同时，Zookeeper能够保证接收方在处理消息时，会对重复消息进行正确的处理。
         
     ZAB协议
     
@@ -1521,7 +1584,8 @@
             ZAB 协议全称：Zookeeper Atomic Broadcast（Zookeeper 原子广播协议）。
             ZAB 协议定义：ZAB 协议是为分布式协调服务 Zookeeper 专门设计的一种支持 崩溃恢复 和 原子广播 协议。下面我们会重点讲这两个东西。
             
-        Zookeeper 如何处理集群中的数据。所有客户端写入数据都是写入到 主进程（称为 Leader）中，然后，由 Leader 复制到备份进程（称为 Follower）中。从而保证数据一致性。从设计上看，和 Raft 类似。
+        Zookeeper 如何处理集群中的数据。所有客户端写入数据都是写入到 主进程（称为 Leader）中，然后，由 Leader 复制到
+        备份进程（称为 Follower）中。从而保证数据一致性。从设计上看，和 Raft 类似。
         
         那么复制过程又是如何的呢？复制过程类似 2PC，ZAB 只需要 Follower 有一半以上返回 Ack 信息就可以执行提交，大大减小了同步阻塞。也提高了可用性。
         简单介绍完，开始重点介绍 消息广播 和 崩溃恢复。整个 Zookeeper 就是在这两个模式之间切换。 简而言之，当 Leader 服务可以正常使用，就进入消息广播模式，当 Leader 不可用时，则进入崩溃恢复模式。
@@ -1588,8 +1652,13 @@
     进阶
     https://blog.csdn.net/u010039929/article/details/70171754
     
-    
-    
+    *总结
+        1.zk保证了什么?数据结构?节点类型?
+        2.WatchedEvent由什么组成?KeeperState包括哪些类型?EventType包括哪些类型?
+        3.zk如何实现分布式锁?(两种方法)排它锁和共享锁?实现分布式队列?
+        4.zab协议两种模式?
+        5.zk选举流程?
+        6.QuorumCnxManager：网络I/O?
     
     
 ##15 数据集
