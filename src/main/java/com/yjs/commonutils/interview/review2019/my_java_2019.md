@@ -1,4 +1,10 @@
-
+## 0.jdk
+    steam
+    https://www.cnblogs.com/Dorae/p/7779246.html
+        Stream中的操作可以分为两大类：中间操作与结束操作，中间操作只是对操作进行了记录，只有结束操作才会触发实际的计算（即惰性求值），
+        这也是Stream在迭代大集合时高效的原因之一。中间操作又可以分为无状态（Stateless）操作与有状态（Stateful）操作，
+        前者是指元素的处理不受之前元素的影响；后者是指该操作只有拿到所有元素之后才能继续下去。结束操作又可以分为短路与非短路操作，
+        这个应该很好理解，前者是指遇到某些符合条件的元素就可以得到最终结果；而后者是指必须处理所有元素才能得到最终结果。
 
 ## 1.java内存模型
 
@@ -2172,7 +2178,7 @@
         11.某个表有近千万数据，CRUD比较慢，如何优化？分库分表了是怎么做的？分表分库了有什么问题？有用到中间件么?他们的原理知道么？
         12.你们有没有做 MySQL 读写分离？如何实现 MySQL 的读写分离？MySQL 主从复制原理的是啥？如何解决 MySQL 主从同步的延时问题？
         13.你能回答下MySQL有哪些引擎和各种引擎的执行原理，以及MySQL的呈现原理
-
+        14.如何设计可以动态扩容缩容的分库分表方案？
         
         
              
@@ -2647,11 +2653,326 @@
         什么是缓存穿透?如何解决缓存穿透？
         什么是缓存与数据库双写一致问题？
         一致性hash算法?
-        如何设计可以动态扩容缩容的分库分表方案？
         
         
+        
+        
+        
+##18.dubbo
+    http://dubbo.apache.org/zh-cn/docs/user/demos/thread-model.html (必读)
+
+
+    服务治理和配置管理
+        服务治理
+            服务治理主要作用是改变运行时服务的行为和选址逻辑，达到限流，权重配置等目的，主要有以下几个功能：
+            
+            应用级别的服务治理
+                此Dubbo2.7版本中增加了应用粒度的服务治理操作，对于条件路由(包括黑白名单)，动态配置(包括权重，负载均衡)都可以做应用级别的配置：
+                上图是条件路由的配置，可以按照应用名，服务名两个维度来填写，也可以按照这两个维度来查询。
+                
+            标签路由
+                路由方法包括:条件路由和标签路由
+                调用的时候，客户端可以通过setAttachment的方式，来设置不同的标签名称，比如本例中，setAttachment(tag1)，
+                客户端的选址范围就在如图所示的三台机器中，可以通过这种方式来实现流量隔离，灰度发布等功能。
+                
+            黑白名单
+                黑白名单是条件路由的一部分，规则存储和条件路由放在一起，为了方便配置所以单独拿出来，同样可以通过服务和应用两个维度，指定黑名单和白名单
+                
+            动态配置
+                动态配置是和路由规则平行的另一类服务治理治理功能，主要作用是在不重启服务的情况下，动态改变调用行为，从Dubbo2.7版本开始，
+                支持服务和应用两个维度的配置，采用yaml格式
+                
+            权重调节
+                权重调节是动态配置的子功能，主要作用是改变服务端的权重，更大的权重会有更大的几率被客户端选中作为服务提供者，
+                从而达到流量分配的目的
+                
+    dubbo流程
+        
+        启动时检查
+            Dubbo 缺省会在启动时检查依赖的服务是否可用，不可用时会抛出异常，阻止 Spring 初始化完成，以便上线时，能及早发现问题，
+            默认 check="true"。
+            可以通过 check="false" 关闭检查，比如，测试时，有些服务不关心，或者出现了循环依赖，必须有一方先启动。
+            另外，如果你的 Spring 容器是懒加载的，或者通过 API 编程延迟引用服务，请关闭 check，否则服务临时不可用时，
+            会抛出异常，拿到 null 引用，如果 check="false"，总是会返回引用，当服务恢复时，能自动连上。
+
+        *集群容错
+            在集群调用失败时，Dubbo 提供了多种容错方案，缺省为 failover(故障转移) 重试。
+            各节点关系：
+            
+            这里的 Invoker 是 Provider 的一个可调用 Service 的抽象，Invoker 封装了 Provider 地址及 Service 接口信息
+            Directory 代表多个 Invoker，可以把它看成 List<Invoker> ，但与 List 不同的是，它的值可能是动态变化的，比如注册中心推送变更
+            Cluster 将 Directory 中的多个 Invoker 伪装成一个 Invoker，对上层透明，伪装过程包含了容错逻辑，调用失败后，重试另一个
+            Router 负责从多个 Invoker 中按路由规则选出子集，比如读写分离，应用隔离等
+            LoadBalance 负责从多个 Invoker 中选出具体的一个用于本次调用，选的过程包含了负载均衡算法，调用失败后，需要重选
+            
+            集群容错模式
+                Failover Cluster
+                失败自动切换，当出现失败，重试其它服务器 [1]。通常用于读操作，但重试会带来更长延迟。可通过 retries="2" 来设置重试次数(不含第一次)。
+                
+                Failfast Cluster
+                快速失败，只发起一次调用，失败立即报错。通常用于非幂等性的写操作，比如新增记录。
+                
+                Failsafe Cluster
+                失败安全，出现异常时，直接忽略。通常用于写入审计日志等操作。
+                
+                Failback Cluster
+                失败自动恢复，后台记录失败请求，定时重发。通常用于消息通知操作。
+                
+                Forking Cluster
+                并行调用多个服务器，只要一个成功即返回。通常用于实时性要求较高的读操作，但需要浪费更多服务资源。可通过 forks="2" 来设置最大并行数。
+                
+                Broadcast Cluster
+                广播调用所有提供者，逐个调用，任意一台报错则报错 [2]。通常用于通知所有提供者更新缓存或日志等本地资源信息。
+
+            集群模式配置
+                按照以下示例在服务提供方和消费方配置集群模式
+                
+                <dubbo:service cluster="failsafe" />
+                或
+                <dubbo:reference cluster="failsafe" />
+        
+        *负载均衡
+            在集群负载均衡时，Dubbo 提供了多种均衡策略，缺省为 random 随机调用。
+            负载均衡策略
+                Random LoadBalance
+                    随机，按权重设置随机概率。
+                    在一个截面上碰撞的概率高，但调用量越大分布越均匀，而且按概率使用权重后也比较均匀，有利于动态调整提供者权重。
+                RoundRobin LoadBalance
+                    轮询，按公约后的权重设置轮询比率。
+                    存在慢的提供者累积请求的问题，比如：第二台机器很慢，但没挂，当请求调到第二台时就卡在那，久而久之，所有请求都卡在调到第二台上。
+                LeastActive LoadBalance
+                    最少活跃调用数，相同活跃数的随机，活跃数指调用前后计数差。
+                    使慢的提供者收到更少请求，因为越慢的提供者的调用前后计数差会越大。
+                ConsistentHash LoadBalance
+                    一致性 Hash，相同参数的请求总是发到同一提供者。
+                    当某一台提供者挂时，原本发往该提供者的请求，基于虚拟节点，平摊到其它提供者，不会引起剧烈变动。
+                    算法参见：http://en.wikipedia.org/wiki/Consistent_hashing
+                    缺省只对第一个参数 Hash，如果要修改，请配置 <dubbo:parameter key="hash.arguments" value="0,1" />
+                    缺省用 160 份虚拟节点，如果要修改，请配置 <dubbo:parameter key="hash.nodes" value="320" />
 
      
-     
-    
-     
+        线程模型
+            如果事件处理的逻辑能迅速完成，并且不会发起新的 IO 请求，比如只是在内存中记个标识，则直接在 IO 线程上处理更快，因为减少了线程池调度。
+            但如果事件处理逻辑较慢，或者需要发起新的 IO 请求，比如需要查询数据库，则必须派发到线程池，否则 IO 线程阻塞，将导致不能接收其它请求。
+            如果用 IO 线程处理事件，又在事件处理过程中发起新的 IO 请求，比如在连接事件中发起登录请求，会报“可能引发死锁”异常，但不会真死锁。
+            因此，需要通过不同的派发策略和不同的线程池配置的组合来应对不同的场景:
+            
+            <dubbo:protocol name="dubbo" dispatcher="all" threadpool="fixed" threads="100" />
+            
+            Dispatcher
+                all 所有消息都派发到线程池，包括请求，响应，连接事件，断开事件，心跳等。
+                direct 所有消息都不派发到线程池，全部在 IO 线程上直接执行。
+                message 只有请求响应消息派发到线程池，其它连接断开事件，心跳等消息，直接在 IO 线程上执行。
+                execution 只请求消息派发到线程池，不含响应，响应和其它连接断开事件，心跳等消息，直接在 IO 线程上执行。
+                connection 在 IO 线程上，将连接断开事件放入队列，有序逐个执行，其它消息派发到线程池。
+            
+            ThreadPool
+                fixed 固定大小线程池，启动时建立线程，不关闭，一直持有。(缺省)
+                cached 缓存线程池，空闲一分钟自动删除，需要时重建。
+                limited 可伸缩线程池，但池中的线程数只会增长不会收缩。只增长不收缩的目的是为了避免收缩时突然来了大流量引起的性能问题。
+                eager 优先创建Worker线程池。在任务数量大于corePoolSize但是小于maximumPoolSize时，优先创建Worker来处理任务。
+                当任务数量大于maximumPoolSize时，将任务放入阻塞队列中。阻塞队列充满时抛出RejectedExecutionException。
+                (相比于cached:cached在任务数量超过maximumPoolSize时直接抛出异常而不是将任务放入阻塞队列)
+
+            直连提供者
+                在开发及测试环境下，经常需要绕过注册中心，只测试指定服务提供者，这时候可能需要点对点直连，点对点直连方式，
+                将以服务接口为单位，忽略注册中心的提供者列表，A 接口配置点对点，不影响 B 接口从注册中心获取列表。
+                如果是线上需求需要点对点，可在 <dubbo:reference> 中配置 url 指向提供者，将绕过注册中心，多个地址用分号隔开，配置如下
+                <dubbo:reference id="xxxService" interface="com.alibaba.xxx.XxxService" url="dubbo://localhost:20890" />
+                
+            只订阅
+                为方便开发测试，经常会在线下共用一个所有服务可用的注册中心，这时，如果一个正在开发中的服务提供者注册，可能会影响消费者不能正常运行。
+                可以让服务提供者开发方，只订阅服务(开发的服务可能依赖其它服务)，而不注册正在开发的服务，通过直连测试正在开发的服务
+                <dubbo:registry address="10.20.153.10:9090" register="false" />
+                或者
+                <dubbo:registry address="10.20.153.10:9090?register=false" />
+                
+            只注册
+                如果有两个镜像环境，两个注册中心，有一个服务只在其中一个注册中心有部署，另一个注册中心还没来得及部署，而两个注册中心的其它应用都需要依赖此服务。这个时候，可以让服务提供者方只注册服务到另一注册中心，而不从另一注册中心订阅服务。
+                禁用订阅配置
+                
+                <dubbo:registry id="hzRegistry" address="10.20.153.10:9090" />
+                <dubbo:registry id="qdRegistry" address="10.20.141.150:9090" subscribe="false" />
+                或者
+                <dubbo:registry id="hzRegistry" address="10.20.153.10:9090" />
+                <dubbo:registry id="qdRegistry" address="10.20.141.150:9090?subscribe=false" />
+                
+                
+            静态服务
+                有时候希望人工管理服务提供者的上线和下线，此时需将注册中心标识为非动态管理模式。
+                <dubbo:registry address="10.20.141.150:9090" dynamic="false" />
+                或者
+                <dubbo:registry address="10.20.141.150:9090?dynamic=false" />
+                服务提供者初次注册时为禁用状态，需人工启用。断线时，将不会被自动删除，需人工禁用。
+            
+            多协议
+                Dubbo 允许配置多协议，在不同服务上支持不同协议或者同一服务上同时支持多种协议。
+                
+                不同服务不同协议
+                不同服务在性能上适用不同协议进行传输，比如大数据用短连接协议，小数据大并发用长连接协议
+                
+                <?xml version="1.0" encoding="UTF-8"?>
+                <beans xmlns="http://www.springframework.org/schema/beans"
+                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xmlns:dubbo="http://dubbo.apache.org/schema/dubbo"
+                    xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.3.xsd http://dubbo.apache.org/schema/dubbo http://dubbo.apache.org/schema/dubbo/dubbo.xsd"> 
+                    <dubbo:application name="world"  />
+                    <dubbo:registry id="registry" address="10.20.141.150:9090" username="admin" password="hello1234" />
+                    <!-- 多协议配置 -->
+                    <dubbo:protocol name="dubbo" port="20880" />
+                    <dubbo:protocol name="rmi" port="1099" />
+                    <!-- 使用dubbo协议暴露服务 -->
+                    <dubbo:service interface="com.alibaba.hello.api.HelloService" version="1.0.0" ref="helloService" protocol="dubbo" />
+                    <!-- 使用rmi协议暴露服务 -->
+                    <dubbo:service interface="com.alibaba.hello.api.DemoService" version="1.0.0" ref="demoService" protocol="rmi" /> 
+                </beans>
+                多协议暴露服务
+                需要与 http 客户端互操作
+                
+                <?xml version="1.0" encoding="UTF-8"?>
+                <beans xmlns="http://www.springframework.org/schema/beans"
+                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xmlns:dubbo="http://dubbo.apache.org/schema/dubbo"
+                    xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.3.xsd http://dubbo.apache.org/schema/dubbo http://dubbo.apache.org/schema/dubbo/dubbo.xsd">
+                    <dubbo:application name="world"  />
+                    <dubbo:registry id="registry" address="10.20.141.150:9090" username="admin" password="hello1234" />
+                    <!-- 多协议配置 -->
+                    <dubbo:protocol name="dubbo" port="20880" />
+                    <dubbo:protocol name="hessian" port="8080" />
+                    <!-- 使用多个协议暴露服务 -->
+                    <dubbo:service id="helloService" interface="com.alibaba.hello.api.HelloService" version="1.0.0" protocol="dubbo,hessian" />
+                </beans>
+
+
+            多注册中心
+                Dubbo 支持同一服务向多注册中心同时注册，或者不同服务分别注册到不同的注册中心上去，甚至可以同时引用注册在不同注册中心上的同名服务。另外，注册中心是支持自定义扩展的 [1]。
+            
+            服务分组
+                当一个接口有多种实现时，可以用 group 区分。
+                
+                服务
+                <dubbo:service group="feedback" interface="com.xxx.IndexService" />
+                <dubbo:service group="member" interface="com.xxx.IndexService" />
+                引用
+                <dubbo:reference id="feedbackIndexService" group="feedback" interface="com.xxx.IndexService" />
+                <dubbo:reference id="memberIndexService" group="member" interface="com.xxx.IndexService" />
+                
+            多版本
+                当一个接口实现，出现不兼容升级时，可以用版本号过渡，版本号不同的服务相互间不引用。
+                可以按照以下的步骤进行版本迁移：
+                0.在低压力时间段，先升级一半提供者为新版本
+                1.再将所有消费者升级为新版本
+                2.然后将剩下的一半提供者升级为新版本
+                
+                
+            分组聚合
+                按组合并返回结果 [1]，比如菜单服务，接口一样，但有多种实现，用group区分，现在消费方需从每种group中调用一次返回结果，
+                合并结果返回，这样就可以实现聚合菜单项。
+                
+            结果缓存
+                结果缓存 [1]，用于加速热门数据的访问速度，Dubbo 提供声明式缓存，以减少用户加缓存的工作量 [2]。
+                
+                缓存类型
+                lru 基于最近最少使用原则删除多余缓存，保持最热的数据被缓存。
+                threadlocal 当前线程缓存，比如一个页面渲染，用到很多 portal，每个 portal 都要去查用户信息，通过线程缓存，可以减少这种多余访问。
+                jcache 与 JSR107 集成，可以桥接各种缓存实现。
+                缓存类型可扩展，参见：缓存扩展
+                
+                配置
+                <dubbo:reference interface="com.foo.BarService" cache="lru" />
+                或：
+                
+                <dubbo:reference interface="com.foo.BarService">
+                    <dubbo:method name="findBar" cache="lru" />
+                </dubbo:reference>
+                
+    *整体设计
+    http://dubbo.apache.org/zh-cn/docs/source_code_guide/service-invoking-process.html
+        各层说明
+            config 配置层：对外配置接口，以 ServiceConfig, ReferenceConfig 为中心，可以直接初始化配置类，也可以通过 spring 解析配置生成配置类
+            proxy 服务代理层：服务接口透明代理，生成服务的客户端 Stub 和服务器端 Skeleton, 以 ServiceProxy 为中心，扩展接口为 ProxyFactory
+            registry 注册中心层：封装服务地址的注册与发现，以服务 URL 为中心，扩展接口为 RegistryFactory, Registry, RegistryService
+            cluster 路由层：封装多个提供者的路由及负载均衡，并桥接注册中心，以 Invoker 为中心，扩展接口为 Cluster, Directory, Router, LoadBalance
+            monitor 监控层：RPC 调用次数和调用时间监控，以 Statistics 为中心，扩展接口为 MonitorFactory, Monitor, MonitorService
+            protocol 远程调用层：封装 RPC 调用，以 Invocation, Result 为中心，扩展接口为 Protocol, Invoker, Exporter
+            exchange 信息交换层：封装请求响应模式，同步转异步，以 Request, Response 为中心，扩展接口为 Exchanger, ExchangeChannel, ExchangeClient, ExchangeServer
+            transport 网络传输层：抽象 mina 和 netty 为统一接口，以 Message 为中心，扩展接口为 Channel, Transporter, Client, Server, Codec
+            serialize 数据序列化层：可复用的一些工具，扩展接口为 Serialization, ObjectInput, ObjectOutput, ThreadPool
+           
+        关系说明
+            在 RPC 中，Protocol 是核心层，也就是只要有 Protocol + Invoker + Exporter 就可以完成非透明的 RPC 调用，然后在 Invoker 的主过程上 Filter 拦截点。
+            图中的 Consumer 和 Provider 是抽象概念，只是想让看图者更直观的了解哪些类分属于客户端与服务器端，不用 Client 和 Server 的原因是 Dubbo 在很多场景下都使用 Provider, Consumer, Registry, Monitor 划分逻辑拓普节点，保持统一概念。
+            而 Cluster 是外围概念，所以 Cluster 的目的是将多个 Invoker 伪装成一个 Invoker，这样其它人只要关注 Protocol 层 Invoker 即可，加上 Cluster 或者去掉 Cluster 对其它层都不会造成影响，因为只有一个提供者时，是不需要 Cluster 的。
+            Proxy 层封装了所有接口的透明化代理，而在其它层都以 Invoker 为中心，只有到了暴露给用户使用时，才用 Proxy 将 Invoker 转成接口，或将接口实现转成 Invoker，也就是去掉 Proxy 层 RPC 是可以 Run 的，只是不那么透明，不那么看起来像调本地服务一样调远程服务。
+            而 Remoting 实现是 Dubbo 协议的实现，如果你选择 RMI 协议，整个 Remoting 都不会用上，Remoting 内部再划为 Transport 传输层和 Exchange 信息交换层，Transport 层只负责单向消息传输，是对 Mina, Netty, Grizzly 的抽象，它也可以扩展 UDP 传输，而 Exchange 层是在传输层之上封装了 Request-Response 语义。
+            Registry 和 Monitor 实际上不算一层，而是一个独立的节点，只是为了全局概览，用层的方式画在一起。
+        
+        经历多次调用，到这里请求数据的发送过程就结束了，过程漫长。为了便于大家阅读代码，这里以 DemoService 为例，将 sayHello 方法的整个调用路径贴出来。
+        
+        proxy0#sayHello(String)
+          —> InvokerInvocationHandler#invoke(Object, Method, Object[])
+            —> MockClusterInvoker#invoke(Invocation)
+              —> AbstractClusterInvoker#invoke(Invocation)
+                —> FailoverClusterInvoker#doInvoke(Invocation, List<Invoker<T>>, LoadBalance)
+                  —> Filter#invoke(Invoker, Invocation)  // 包含多个 Filter 调用
+                    —> ListenerInvokerWrapper#invoke(Invocation) 
+                      —> AbstractInvoker#invoke(Invocation) 
+                        —> DubboInvoker#doInvoke(Invocation)
+                          —> ReferenceCountExchangeClient#request(Object, int)
+                            —> HeaderExchangeClient#request(Object, int)
+                              —> HeaderExchangeChannel#request(Object, int)
+                                —> AbstractPeer#send(Object)
+                                  —> AbstractClient#send(Object, boolean)
+                                    —> NettyChannel#send(Object, boolean)
+                                      —> NioClientSocketChannel#write(Object)
+                                      
+        
+        
+        上面的方法通过反序列化将诸如 path、version、调用方法名、参数列表等信息依次解析出来，并设置到相应的字段中，
+        最终得到一个具有完整调用信息的 DecodeableRpcInvocation 对象。
+        
+        到这里，请求数据解码的过程就分析完了。此时我们得到了一个 Request 对象，这个对象会被传送到下一个入站处理器中，
+        我们继续往下看。
+        
+        调用服务
+        解码器将数据包解析成 Request 对象后，NettyHandler 的 messageReceived 方法紧接着会收到这个对象，并将这个对象继续向下传递。
+        这期间该对象会被依次传递给 NettyServer、MultiMessageHandler、HeartbeatHandler 以及 AllChannelHandler。
+        最后由 AllChannelHandler 将该对象封装到 Runnable 实现类对象中，并将 Runnable 放入线程池中执行后续的调用逻辑。整个调用栈如下：
+        
+        NettyHandler#messageReceived(ChannelHandlerContext, MessageEvent)
+          —> AbstractPeer#received(Channel, Object)
+            —> MultiMessageHandler#received(Channel, Object)
+              —> HeartbeatHandler#received(Channel, Object)
+                —> AllChannelHandler#received(Channel, Object)
+                  —> ExecutorService#execute(Runnable)    // 由线程池执行后续的调用逻辑
+                  
+                  
+        线程派发模型
+        Dubbo 将底层通信框架中接收请求的线程称为 IO 线程。如果一些事件处理逻辑可以很快执行完，比如只在内存打一个标记，此时直接在
+        IO 线程上执行该段逻辑即可。但如果事件的处理逻辑比较耗时，比如该段逻辑会发起数据库查询或者 HTTP 请求。此时我们就不应该让
+        事件处理逻辑在 IO 线程上执行，而是应该派发到线程池中去执行。原因也很简单，IO 线程主要用于接收请求，如果 IO 线程被占满，
+        将导致它不能接收新的请求。
+        
+
+        到这里，整个服务调用过程就分析完了。最后把调用过程贴出来，如下：
+        
+        ChannelEventRunnable#run()
+          —> DecodeHandler#received(Channel, Object)
+            —> HeaderExchangeHandler#received(Channel, Object)
+              —> HeaderExchangeHandler#handleRequest(ExchangeChannel, Request)
+                —> DubboProtocol.requestHandler#reply(ExchangeChannel, Object)
+                  —> Filter#invoke(Invoker, Invocation)
+                    —> AbstractProxyInvoker#invoke(Invocation)
+                      —> Wrapper0#invokeMethod(Object, String, Class[], Object[])
+                        —> DemoServiceImpl#sayHello(String)
+                        
+        
+                
+                
+                
+                
+                
+                
+                
+                
+                
