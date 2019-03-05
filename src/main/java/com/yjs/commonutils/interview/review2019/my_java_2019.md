@@ -5,7 +5,8 @@
         这也是Stream在迭代大集合时高效的原因之一。中间操作又可以分为无状态（Stateless）操作与有状态（Stateful）操作，
         前者是指元素的处理不受之前元素的影响；后者是指该操作只有拿到所有元素之后才能继续下去。结束操作又可以分为短路与非短路操作，
         这个应该很好理解，前者是指遇到某些符合条件的元素就可以得到最终结果；而后者是指必须处理所有元素才能得到最终结果。
-
+    
+    https://crossoverjie.top/categories/Java-%E8%BF%9B%E9%98%B6/    (推荐)
 ## 1.java内存模型
 
         https://blog.csdn.net/tjiyu/article/details/53915869
@@ -66,7 +67,18 @@
          ，然后再获取这个类对应的class对象，再通过class对象提供的方法结合类Method,Filed,Constructor，
          就能获取到这个类的所有相关信息.
          
-         
+     Tomcat 类加载器之为何违背双亲委派模型
+        https://blog.csdn.net/dangwanma6489/article/details/80244981
+        tomcat 违背了java 推荐的双亲委派模型了吗？
+        答案是：违背了。 我们前面说过：
+        双亲委派模型要求除了顶层的启动类加载器之外，其余的类加载器都应当由自己的父类加载器加载。
+        很显然，tomcat 不是这样实现，tomcat 为了实现隔离性，没有遵守这个约定，每个webappClassLoader加载自己的目录下的class文件，不会传递给父类加载器。
+        我们扩展出一个问题：如果tomcat 的 Common ClassLoader 想加载 WebApp ClassLoader 中的类，该怎么办？
+        看了前面的关于破坏双亲委派模型的内容，我们心里有数了，我们可以使用线程上下文类加载器实现，
+        使用线程上下文加载器，可以让父类加载器请求子类加载器去完成类加载的动作。
+        
+     
+       
 
 ## 3.jvm
 
@@ -176,6 +188,7 @@
 ## 6.多线程
 
      https://github.com/Snailclimb/JavaGuide/blob/master/Java%E7%9B%B8%E5%85%B3/Multithread/AQS.md
+     https://blog.csdn.net/sinat_35512245/article/details/59056120  (常用题)
      
      对于CountDownLatch来说，重点是“一个线程（多个线程）等待”，而其他的N个线程在完成“某件事情”之后，可以终止，
      也可以等待。而对于CyclicBarrier，重点是多个线程，在任意一个线程没有完成，所有的线程都必须等待。
@@ -189,7 +202,8 @@
      CLH(Craig,Landin,and Hagersten)队列是一个虚拟的双向队列（虚拟的双向队列即不存在队列实例，仅存在结点之间的关联关系）。
      AQS是将每条请求共享资源的线程封装成一个CLH锁队列的一个结点（Node）来实现锁的分配。
      
-
+     *ReentrantLock 实现原理
+     https://crossoverjie.top/%2F2018%2F01%2F25%2FReentrantLock%2F
 
 
      https://www.cnblogs.com/wxd0108/p/5479442.html
@@ -262,6 +276,8 @@
      AtomicInteger.compareAndSet(int expect,int update)
      该方法可用于实现乐观锁
      ABA问题
+     用AtomicStampedReference解决
+     https://www.cnblogs.com/java20130722/p/3206742.html
      
      
      
@@ -354,7 +370,8 @@
         高性能计数器总结
         AtomicLong ：并发场景下读性能优秀，写性能急剧下降，不适合作为高性能的计数器方案。内存需求量少。
         
-        LongAdder ：并发场景下写性能优秀，读性能由于组合求值的原因，不如直接读值的方案，但由于计数器场景写多读少的缘故，整体性能在几个方案中最优，是高性能计数器的首选方案。由于 Cells 数组以及缓存行填充的缘故，占用内存较大。
+        LongAdder ：并发场景下写性能优秀，读性能由于组合求值的原因，不如直接读值的方案，但由于计数器场景写多读少的缘故，
+        整体性能在几个方案中最优，是高性能计数器的首选方案。由于 Cells 数组以及缓存行填充的缘故，占用内存较大。
         
         ConcurrentAutoTable ：拥有和 LongAdder 相近的写入性能，读性能则更加不如 LongAdder。它的使用需要引入 JCTools 依赖，相比 Jdk 自带的 LongAdder 并没有优势。但额外说明一点，
         ConcurrentAutoTable 的使用并非局限于计数器场景，其仍然存在很大的价值。
@@ -366,6 +383,47 @@
      CountDownLatch实现原理
      https://cloud.tencent.com/developer/article/1038486
     
+     fail-fast：
+        机制是java集合(Collection)中的一种错误机制。当多个线程对同一个集合的内容进行操作时，就可能会产生fail-fast事件。 
+        例如：当某一个线程A通过iterator去遍历某集合的过程中，若该集合的内容被其他线程所改变了；那么线程A访问集合时，就会抛出ConcurrentModificationException异常，产生fail-fast事件
+    
+     happens-before:如果两个操作之间具有happens-before 关系，那么前一个操作的结果就会对后面一个操作可见。 
+         1.程序顺序规则：一个线程中的每个操作，happens- before 于该线程中的任意后续操作。 
+         2.监视器锁规则：对一个监视器锁的解锁，happens- before 于随后对这个监视器锁的加锁。 
+         3.volatile变量规则：对一个volatile域的写，happens- before于任意后续对这个volatile域的读。 
+         4.传递性：如果A happens- before B，且B happens- before C，那么A happens- before C。 
+         5.线程启动规则：Thread对象的start()方法happens- before于此线程的每一个动作。
+
+     Volatile和Synchronized四个不同点： 
+         1 粒度不同，前者针对变量 ，后者锁对象和类 
+         2 syn阻塞，volatile线程不阻塞 
+         3 syn保证三大特性，volatile不保证原子性 
+         4 syn编译器优化，volatile不优化 
+         volatile具备两种特性： 
+         1. 保证此变量对所有线程的可见性，指一条线程修改了这个变量的值，新值对于其他线程来说是可见的，但并不是多线程安全的。 
+         2. 禁止指令重排序优化。 
+         Volatile如何保证内存可见性: 
+         1.当写一个volatile变量时，JMM会把该线程对应的本地内存中的共享变量刷新到主内存。 
+         2.当读一个volatile变量时，JMM会把该线程对应的本地内存置为无效。线程接下来将从主内存中读取共享变量。
+         
+         同步：就是一个任务的完成需要依赖另外一个任务，只有等待被依赖的任务完成后，依赖任务才能完成。 
+         异步：不需要等待被依赖的任务完成，只是通知被依赖的任务要完成什么工作，只要自己任务完成了就算完成了，
+         被依赖的任务是否完成会通知回来。（异步的特点就是通知）。 
+         打电话和发短信来比喻同步和异步操作。 
+         阻塞：CPU停下来等一个慢的操作完成以后，才会接着完成其他的工作。 
+         非阻塞：非阻塞就是在这个慢的执行时，CPU去做其他工作，等这个慢的完成后，CPU才会接着完成后续的操作。 
+         非阻塞会造成线程切换增加，增加CPU的使用时间能不能补偿系统的切换成本需要考虑。
+     
+     
+     CAS（Compare And Swap） 无锁算法： 
+        CAS是乐观锁技术，当多个线程尝试使用CAS同时更新同一个变量时，只有其中一个线程能更新变量的值，而其它线程都失败，失败的线程并不会被挂起，
+        而是被告知这次竞争中失败，并可以再次尝试。CAS有3个操作数，内存值V，旧的预期值A，要修改的新值B。当且仅当预期值A和内存值V相同时，
+        将内存值V修改为B，否则什么都不做。
+
+     
+
+
+
     
      *总结
         你讲讲线程池的实现原理?比如现在设置coreSize=5，maxSize=10，blockQueueSize=10，依次提交6个比较耗时的任务，线程池是如何执行的？
@@ -436,7 +494,17 @@
     策略模式
     https://www.cnblogs.com/lewis0077/p/5133812.html
     
-## 10.网络等基础
+## 10.网络/j2ee等基础
+
+    一个Http请求 
+        DNS域名解析 –> 发起TCP的三次握手 –> 建立TCP连接后发起http请求 –> 服务器响应http请求，浏览器得到html代码 
+        –> 浏览器解析html代码，并请求html代码中的资源（如javascript、css、图片等） –> 浏览器对页面进行渲染呈现给用户
+        
+        设计存储海量数据的存储系统：设计一个叫“中间层”的一个逻辑层，在这个层，将数据库的海量数据抓出来，做成缓存，运行在服务器的内存中，
+        同理，当有新的数据到来，也先做成缓存，再想办法，持久化到数据库中，这是一个简单的思路。主要的步骤是负载均衡，
+        将不同用户的请求分发到不同的处理节点上，然后先存入缓存，定时向主数据库更新数据。读写的过程采用类似乐观锁的机制，可以一直读
+        （在写数据的时候也可以），但是每次读的时候会有个版本的标记，如果本次读的版本低于缓存的版本，会重新读数据，这样的情况并不多，可以忍受。
+    
 
     TCP和UDP的区别和优缺点
     https://blog.csdn.net/xiaobangkuaipao/article/details/76793702
@@ -452,8 +520,15 @@
     
     nginx
     https://github.com/dunwu/nginx-tutorial
+    
+    分布式Session框架 
+        1. 配置服务器，Zookeeper集群管理服务器可以统一管理所有服务器的配置文件 
+        2. 共享这些Session存储在一个分布式缓存中，可以随时写入和读取，而且性能要很好，如Memcache，Tair。 
+        3. 封装一个类继承自HttpSession，将Session存入到这个类中然后再存入分布式缓存中 
+        4. 由于Cookie不能跨域访问，要实现Session同步，要同步SessionID写到不同域名下。
 
 
+    
 ## 11.java IO NIO
 
     https://mp.weixin.qq.com/s?__biz=MzU4NDQ4MzU5OA==&mid=2247483956&idx=1&sn=57692bc5b7c2c6dfb812489baadc29c9&chksm=fd985455caefdd4331d828d8e89b22f19b304aa87d6da73c5d8c66fcef16e4c0b448b1a6f791&scene=21#wechat_redirect
@@ -503,6 +578,21 @@
     依赖注入（DI）和控制反转（IoC）
     你可以把不相干组件组合在一起，从而组成一个完整的可以使用的应用。Spring根据设计模式编码出了非常优秀的代码，
     所以可以直接集成到自己的应用中。因此，大量的组织机构都使用Spring来保证应用程序的健壮性和可维护性。
+    
+    Spring支持三种依赖注入方式，
+        分别是属性（Setter方法）注入，构造注入和接口注入。
+    
+    在Spring中，那些组成应用的主体及由Spring IOC容器所管理的对象被称之为Bean。
+    
+    Spring的IOC容器通过反射的机制实例化Bean并建立Bean之间的依赖关系。 
+    简单地讲，Bean就是由Spring IOC容器初始化、装配及被管理的对象。 
+    获取Bean对象的过程，首先通过Resource加载配置文件并启动IOC容器，然后通过getBean方法获取bean对象，就可以调用他的方法。 
+    Spring Bean的作用域： 
+    Singleton：Spring IOC容器中只有一个共享的Bean实例，一般都是Singleton作用域。 
+    Prototype：每一个请求，会产生一个新的Bean实例。 
+    Request：每一次http请求会产生一个新的Bean实例。
+
+
 
     模块
     
@@ -711,6 +801,27 @@
      *Spring aop 原理(代理模式)
         https://www.cnblogs.com/lcngu/p/5339555.html
         
+        代理的共有优点：业务类只需要关注业务逻辑本身，保证了业务类的重用性。 
+            Java静态代理： 
+            代理对象和目标对象实现了相同的接口，目标对象作为代理对象的一个属性，具体接口实现中，代理对象可以在调用目标对象相应方法前后加上其他业务处理逻辑。 
+            缺点：一个代理类只能代理一个业务类。如果业务类增加方法时，相应的代理类也要增加方法。 
+            Java动态代理： 
+            Java动态代理是写一个类实现InvocationHandler接口，重写Invoke方法，在Invoke方法可以进行增强处理的逻辑的编写，
+            这个公共代理类在运行的时候才能明确自己要代理的对象，同时可以实现该被代理类的方法的实现，然后在实现类方法的时候可以进行增强处理。 
+            实际上：代理对象的方法 = 增强处理 + 被代理对象的方法
+        
+        *JDK和CGLIB生成动态代理类的区别： 
+            1.JDK动态代理只能针对实现了接口的类生成代理（实例化一个类）。此时代理对象和目标对象实现了相同的接口，目标对象作为代理对象的一个属性，
+            具体接口实现中，可以在调用目标对象相应方法前后加上其他业务处理逻辑 
+            2.CGLIB是针对类实现代理，主要是对指定的类生成一个子类（没有实例化一个类），覆盖其中的方法 。 
+            
+            Spring AOP应用场景 
+            性能检测，访问控制，日志管理，事务等。 
+            默认的策略是如果目标类实现接口，则使用JDK动态代理技术，如果目标对象没有实现接口，则默认会采用CGLIB代理
+        
+        
+
+                
      *总结
         1.bean的生命周期?
         2.ioc容器初始化流程?
@@ -1199,6 +1310,9 @@
         11.Data Replication何时Commit？
         12.Data Replication如何处理Replica恢复
         13.Data Replication如何处理Replica全部宕机
+        14.消息中间件如何实现每秒几十万的高并发写入？    https://juejin.im/post/5c7bd09b6fb9a049ba424c15
+        
+        
         
         
     
