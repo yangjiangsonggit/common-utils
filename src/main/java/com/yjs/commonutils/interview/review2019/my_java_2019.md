@@ -7,6 +7,8 @@
         这个应该很好理解，前者是指遇到某些符合条件的元素就可以得到最终结果；而后者是指必须处理所有元素才能得到最终结果。
     
     https://crossoverjie.top/categories/Java-%E8%BF%9B%E9%98%B6/    (推荐)
+    
+    
 ## 1.java内存模型
 
         https://blog.csdn.net/tjiyu/article/details/53915869
@@ -494,7 +496,7 @@
     策略模式
     https://www.cnblogs.com/lewis0077/p/5133812.html
     
-## 10.网络/j2ee等基础
+## 10.网络IO/j2ee等基础
 
     一个Http请求 
         DNS域名解析 –> 发起TCP的三次握手 –> 建立TCP连接后发起http请求 –> 服务器响应http请求，浏览器得到html代码 
@@ -527,14 +529,20 @@
         3. 封装一个类继承自HttpSession，将Session存入到这个类中然后再存入分布式缓存中 
         4. 由于Cookie不能跨域访问，要实现Session同步，要同步SessionID写到不同域名下。
 
+    字节流与字符流
+        https://www.cnblogs.com/DONGb/p/7844123.html
+        
+    
 
     
 ## 11.java IO NIO
 
     https://mp.weixin.qq.com/s?__biz=MzU4NDQ4MzU5OA==&mid=2247483956&idx=1&sn=57692bc5b7c2c6dfb812489baadc29c9&chksm=fd985455caefdd4331d828d8e89b22f19b304aa87d6da73c5d8c66fcef16e4c0b448b1a6f791&scene=21#wechat_redirect
-        
     
-    
+    比较完整
+    https://github.com/Snailclimb/JavaGuide/blob/master/Java%E7%9B%B8%E5%85%B3/Java%20IO%E4%B8%8ENIO.md#%E4%B8%80-java-io%EF%BC%8C%E7%A1%AC%E9%AA%A8%E5%A4%B4%E4%B9%9F%E8%83%BD%E5%8F%98%E8%BD%AF
+    代码demo
+    https://github.com/wanwanpp/netty-demo
 
 ## 12.spring
 
@@ -3082,7 +3090,10 @@
                         
         
                 
-                
+##netty
+
+    https://juejin.im/post/5a228cc15188254cc067aef8
+        
                 
                 
                 
