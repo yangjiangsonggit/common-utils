@@ -498,6 +498,23 @@
     
 ## 10.网络IO/j2ee等基础
 
+    位 bit 
+    字节 byte 
+    字 word 
+    
+    1字=2字节(1 word = 2 byte) 
+    1字节=8位(1 byte = 8bit) 
+     
+    一个字的字长为16 
+    一个字节的字长是8
+    
+    bps 是 bits per second 的简称。一般数据机及网络通讯的传输速率都是以「bps」为单位。如56Kbps、100.0Mbps 等等。 
+    Bps即是Byte per second 的简称。而电脑一般都以Bps 显示速度，如1Mbps 大约等同 128 KBps。 
+    bit 电脑记忆体中最小的单位，在二进位电脑系统中，每一bit 可以代表0 或 1 的数位讯号。 
+    Byte一个Byte由8 bits 所组成，可代表一个字元(A~Z)、数字(0~9)、或符号(,.?!%&+-*/)，是记忆体储存资料的基本单位，
+    至於每个中文字则须要两Bytes。当记忆体容量过大时，位元组这个单位就不够用，因此就有千位元组的单位KB出现，
+    以下乃个记忆体计算单位之间的相关性：
+
     一个Http请求 
         DNS域名解析 –> 发起TCP的三次握手 –> 建立TCP连接后发起http请求 –> 服务器响应http请求，浏览器得到html代码 
         –> 浏览器解析html代码，并请求html代码中的资源（如javascript、css、图片等） –> 浏览器对页面进行渲染呈现给用户
@@ -3091,13 +3108,355 @@
         
                 
 ##netty
+    https://juejin.im/post/5a228cc15188254cc067aef8 (必看)
+    
+    Netty提供了高性能与易用性，它具有以下特点：
+        1.拥有设计良好且统一的API，支持NIO与OIO（阻塞IO）等多种传输类型，支持真正的无连接UDP Socket。
+        2.简单而强大的线程模型，可高度定制线程（池）。
+        3.良好的模块化与解耦，支持可扩展和灵活的事件模型，可以很轻松地分离关注点以复用逻辑组件（可插拔的,解耦）。
+        4.性能高效，拥有比Java核心API更高的吞吐量，通过zero-copy功能以实现最少的内存复制消耗。
+        5.内置了许多常用的协议编解码器，如HTTP、SSL、WebScoket等常见协议可以通过Netty做到开箱即用。
+        用户也可以利用Netty简单方便地实现自己的应用层协议。
+        
+    NIO可以称为New IO也可以称为Non-blocking IO，它比Java旧的阻塞IO在性能上要高效许多（如果让每一个连接中的IO操作都单独创建一个线程，
+    那么阻塞IO并不会比NIO在性能上落后，但不可能创建无限多的线程，在连接数非常多的情况下会很糟糕）。
+    
+        1.ByteBuffer：NIO的数据传输是基于缓冲区的，ByteBuffer正是NIO数据传输中所使用的缓冲区抽象。ByteBuffer支持在堆外分配内存，
+        并且尝试避免在执行I/O操作中的多余复制。一般的I/O操作都需要进行系统调用，这样会先切换到内核态，内核态要先从文件读取数据到它的缓冲区，
+        只有等数据准备完毕后，才会从内核态把数据写到用户态，所谓的阻塞IO其实就是说的在等待数据准备好的这段时间内进行阻塞。
+        如果想要避免这个额外的内核操作，可以通过使用mmap（虚拟内存映射）的方式来让用户态直接操作文件。
+          
+        2.Channel：它类似于文件描述符，简单地来说它代表了一个实体（如一个硬件设备、文件、Socket或者一个能够执行一个
+        或多个不同的I/O操作的程序组件）。你可以从一个Channel中读取数据到缓冲区，也可以将一个缓冲区中的数据写入到Channel。
+        
+        3.Selector：选择器是NIO实现的关键，NIO采用的是I/O多路复用的方式来实现非阻塞，Selector通过在一个线程中监听每个Channel的IO事件
+        来确定有哪些已经准备好进行IO操作的Channel，因此可以在任何时间检查任意的读操作或写操作的完成状态。这种方式避免了等待IO操作准备
+        数据时的阻塞，使用较少的线程便可以处理许多连接，减少了线程切换与维护的开销。
+        
+    网络传输的基本单位是字节，在Java NIO中提供了ByteBuffer作为字节缓冲区容器，但该类的API使用起来不太方便，所以Netty实现了ByteBuf
+    作为其替代品，下面是使用ByteBuf的优点：
+        相比ByteBuffer使用起来更加简单。
+        通过内置的复合缓冲区类型实现了透明的zero-copy。
+        容量可以按需增长。
+        读和写使用了不同的索引指针。
+        支持链式调用。
+        支持引用计数与池化。
+        可以被用户自定义的缓冲区类型扩展。
+        
+    *ByteBuf
+    
+    在讨论ByteBuf之前，我们先需要了解一下ByteBuffer的实现，这样才能比较深刻地明白它们之间的区别。
+    ByteBuffer继承于abstract class Buffer（所以还有LongBuffer、IntBuffer等其他类型的实现），
+        本质上它只是一个有限的线性的元素序列，包含了三个重要的属性。
+            1.Capacity：缓冲区中元素的容量大小，你只能将capacity个数量的元素写入缓冲区，一旦缓冲区已满就需要清理缓冲区才能继续写数据。
+            2.Position：指向下一个写入数据位置的索引指针，初始位置为0，最大为capacity-1。当写模式转换为读模式时，position需要被重置为0。
+            3.Limit：在写模式中，limit是可以写入缓冲区的最大索引，也就是说它在写模式中等价于缓冲区的容量。在读模式中，limit表示可以读取数据的最大索引。
+        
+        由于Buffer中只维护了position一个索引指针，所以它在读写模式之间的切换需要调用一个flip()方法来重置指针。使用Buffer的流程一般如下：
+            写入数据到缓冲区。
+            调用flip()方法。
+            从缓冲区中读取数据
+            调用buffer.clear()或者buffer.compact()清理缓冲区，以便下次写入数据。
+        
+        Java NIO中的Buffer API操作的麻烦之处就在于读写转换需要手动重置指针。而ByteBuf没有这种繁琐性，它维护了两个不同的索引，
+        一个用于读取，一个用于写入。当你从ByteBuf读取数据时，它的readerIndex将会被递增已经被读取的字节数，同样的，
+        当你写入数据时，writerIndex则会递增。readerIndex的最大范围在writerIndex的所在位置，如果试图移动readerIndex超过该值则会触发异常。
+        ByteBuf中名称以read或write开头的方法将会递增它们其对应的索引，而名称以get或set开头的方法则不会。
+        ByteBuf同样可以指定一个最大容量，试图移动writerIndex超过该值则会触发异常。
+        
+        1.ByteBuf同样支持在堆内和堆外进行分配。在堆内分配也被称为支撑数组模式，它能在没有使用池化的情况下提供快速的分配和释放。
+        2.另一种模式为堆外分配，Java NIO ByteBuffer类在JDK1.4时就已经允许JVM实现通过JNI调用来在堆外分配内存（
+        调用malloc()函数在JVM堆外分配内存），这主要是为了避免额外的缓冲区复制操作。
+        3.ByteBuf还支持第三种模式，它被称为复合缓冲区，为多个ByteBuf提供了一个聚合视图。在这个视图中，
+        你可以根据需要添加或者删除ByteBuf实例，ByteBuf的子类CompositeByteBuf实现了该模式。
+            一个适合使用复合缓冲区的场景是HTTP协议，通过HTTP协议传输的消息都会被分成两部分——头部和主体，
+            如果这两部分由应用程序的不同模块产生，将在消息发送时进行组装，并且该应用程序还会为多个消息复用相同的消息主体，
+            这样对于每个消息都将会创建一个新的头部，产生了很多不必要的内存操作。使用CompositeByteBuf是一个很好的选择，
+            它消除了这些额外的复制，以帮助你复用这些消息。
+            
+            CompositeByteBuf透明的实现了zero-copy，zero-copy其实就是避免数据在两个内存区域中来回的复制。从操作系统层面上来讲，
+            zero-copy指的是避免在内核态与用户态之间的数据缓冲区复制（通过mmap避免），而Netty中的zero-copy更偏向于在用户态中的
+            数据操作的优化，就像使用CompositeByteBuf来复用多个ByteBuf以避免额外的复制，也可以使用wrap()方法来将一个字节数组
+            包装成ByteBuf，又或者使用ByteBuf的slice()方法把它分割为多个共享同一内存区域的ByteBuf，这些都是为了优化内存的使用率
+            
+    CompositeByteBuf实现零拷贝  
+        zero copy
+            OS层面
+                即所谓的 Zero-copy, 就是在操作数据时, 不需要将数据 buffer 从一个内存区域拷贝到另一个内存区域. 因为少了一次内存的拷贝, 
+                因此 CPU 的效率就得到的提升.
+                在 OS 层面上的 Zero-copy 通常指避免在 用户态(User-space) 与 内核态(Kernel-space) 之间来回拷贝数据.
+                 例如 Linux 提供的 mmap 系统调用, 它可以将一段用户空间内存映射到内核空间, 当映射成功后, 用户对这段内存区域的修改
+                 可以直接反映到内核空间; 同样地, 内核空间对这段区域的修改也直接反映用户空间. 正因为有这样的映射关系, 我们就不需要在 
+                 用户态(User-space) 与 内核态(Kernel-space) 之间拷贝数据, 提高了数据传输的效率.
+                而需要注意的是, Netty 中的 Zero-copy 与上面我们所提到到 OS 层面上的 Zero-copy 不太一样,
+                 Netty的 Zero-coyp 完全是在用户态(Java 层面)的, 它的 Zero-copy 的更多的是偏向于 优化数据操作 这样的概念.
+            
+            Netty 的 Zero-copy 体现在如下几个个方面:
+                Netty 提供了 CompositeByteBuf 类, 它可以将多个 ByteBuf 合并为一个逻辑上的 ByteBuf, 避免了各个 ByteBuf 之间的拷贝.
+                通过 wrap 操作, 我们可以将 byte[] 数组、ByteBuf、ByteBuffer等包装成一个 Netty ByteBuf 对象, 进而避免了拷贝操作.
+                ByteBuf 支持 slice 操作, 因此可以将 ByteBuf 分解为多个共享同一个存储区域的 ByteBuf, 避免了内存的拷贝.
+                通过 FileRegion 包装的FileChannel.tranferTo 实现文件传输, 可以直接将文件缓冲区的数据发送到目标 Channel,
+                 避免了传统通过循环 write 方式导致的内存拷贝问题.
 
-    https://juejin.im/post/5a228cc15188254cc067aef8
+        不过需要注意的是, 虽然看起来 CompositeByteBuf 是由两个 ByteBuf 组合而成的, 不过在 CompositeByteBuf 内部, 这两个 
+        ByteBuf 都是单独存在的, CompositeByteBuf 只是逻辑上是一个整体.
+        那么其实 compositeByteBuf 的 writeIndex 仍然是0, 因此此时我们就不可能从 compositeByteBuf 中读取到数据, 
+        这一点希望大家要特别注意.
+        除了上面直接使用 CompositeByteBuf 类外, 我们还可以使用 Unpooled.wrappedBuffer 方法, 它底层封装了 CompositeByteBuf 操作,
+        因此使用起来更加方便:
+        
+        通过 slice 操作实现零拷贝
+            
+        为了优化内存使用率，Netty提供了一套手动的方式来追踪不活跃对象，像UnpooledHeapByteBuf这种分配在堆内的对象得益于JVM的GC管理，
+        无需额外操心，而UnpooledDirectByteBuf是在堆外分配的，它的内部基于DirectByteBuffer，DirectByteBuffer会先向Bits类申请
+        一个额度（Bits还拥有一个全局变量totalCapacity，记录了所有DirectByteBuffer总大小），每次申请前都会查看是否已经超过
+        -XX:MaxDirectMemorySize所设置的上限，如果超限就会尝试调用Sytem.gc()，以试图回收一部分内存，然后休眠100毫秒，
+        如果内存还是不足，则只能抛出OOM异常。堆外内存的回收虽然有了这么一层保障，但为了提高性能与使用率，主动回收也是很有必要的。
+        由于Netty还实现了ByteBuf的池化，像PooledHeapByteBuf和PooledDirectByteBuf就必须依赖于手动的方式来进行回收（放回池中）。
+        
+        Netty使用了引用计数器的方式来追踪那些不活跃的对象。引用计数的接口为ReferenceCounted，它的思想很简单，只要ByteBuf对象的引用计数大于0，
+        就保证该对象不会被释放回收，可以通过手动调用release()与retain()方法来操作该对象的引用计数值递减或递增。用户也可以通过自定义
+        一个ReferenceCounted的实现类，以满足自定义的规则。
+        
+    *Channel
+        Netty中的Channel与Java NIO的概念一样，都是对一个实体或连接的抽象，但Netty提供了一套更加通用的API。
+        
+        每个Channel最终都会被分配一个ChannelPipeline和ChannelConfig，前者持有所有负责处理入站与出站数据以及事件的ChannelHandler，
+        后者包含了该Channel的所有配置设置，并且支持热更新，由于不同的传输类型可能具有其特别的配置，所以该类可能会实现为ChannelConfig的
+        不同子类。
+        
+        Channel是线程安全的（与之后要讲的线程模型有关），因此你完全可以在多个线程中复用同一个Channel，
+        
+    *ChannelHandler
+        ChannelHandler充当了处理入站和出站数据的应用程序逻辑的容器，该类是基于事件驱动的，它会响应相关的事件然后去调用其关联的回调函数，
+        例如当一个新的连接被建立时，ChannelHandler的channelActive()方法将会被调用。
+        
+        ChannelHandler的主要用途包括：
+            对入站与出站数据的业务逻辑处理
+            记录日志
+            将数据从一种格式转换为另一种格式，实现编解码器。以一次HTTP协议（或者其他应用层协议）的流程为例，数据在网络传输时的单位为字节，
+            当客户端发送请求到服务器时，服务器需要通过解码器（处理入站消息）将字节解码为协议的消息内容，服务器在发送响应的时候（处理出站消息），
+            还需要通过编码器将消息内容编码为字节。
+            捕获异常
+            提供Channel生命周期内的通知，如Channel活动时与非活动时
+        
+        Netty中到处都充满了异步与事件驱动，而回调函数正是用于响应事件之后的操作。由于异步会直接返回一个结果，
+        所以Netty提供了ChannelFuture（实现了java.util.concurrent.Future）来作为异步调用返回的占位符，
+        真正的结果会在未来的某个时刻完成，到时候就可以通过ChannelFuture对其进行访问，每个Netty的出站I/O操作
+        都将会返回一个ChannelFuture。
+        Netty还提供了ChannelFutureListener接口来监听ChannelFuture是否成功，并采取对应的操作。
+        Channel channel = ...
+        ChannelFuture future = channel.connect(new InetSocketAddress("192.168.0.1",6666));
+        // 注册一个监听器
+        future.addListener(new ChannelFutureListener() {
+        	@Override
+        	public void operationComplete(ChannelFuture future) {
+        		if (future.isSuccess()) {
+        			// do something....
+        		} else {
+        			// 输出错误信息
+        			Throwable cause = future.cause();
+        			cause.printStackTrace();
+        			// do something....
+        		}
+        	}
+        });
+        
+        
+        入站消息与出站消息由其对应的接口ChannelInboundHandler与ChannelOutboundHandler负责，
+        这两个接口定义了监听Channel的生命周期的状态改变事件的回调函数。
+        
+        对于处理入站消息，另外一种选择是继承SimpleChannelInboundHandler，它是Netty的一个继承于ChannelInboundHandlerAdapter的抽象类，
+        并在其之上实现了自动释放资源的功能。
+        我们在了解ByteBuf时就已经知道了Netty使用了一套自己实现的引用计数算法来主动释放资源，假设你的ChannelHandler继承于
+        ChannelInboundHandlerAdapter或ChannelOutboundHandlerAdapter，那么你就有责任去管理你所分配的ByteBuf，
+        一般来说，一个消息对象（ByteBuf）已经被消费（或丢弃）了，并且不会传递给ChannelHandler链中的下一个处理器
+        （如果该消息到达了实际的传输层，那么当它被写入或Channel关闭时，都会被自动释放），那么你就需要去手动释放它。通过一个简单的工具类
+        ReferenceCountUtil的release方法，就可以做到这一点。
+        
+    *ChannelPipeline
+        
+        为了模块化与解耦合，不可能由一个ChannelHandler来完成所有应用逻辑，所以Netty采用了拦截器链的设计。ChannelPipeline就是用来管理
+        ChannelHandler实例链的容器，它的职责就是保证实例链的流动。
+        每一个新创建的Channel都将会被分配一个新的ChannelPipeline，这种关联关系是永久性的，一个Channel一生只能对应一个ChannelPipeline。
+        
+        一个入站事件被触发时，它会先从ChannelPipeline的最左端（头部）开始一直传播到ChannelPipeline的最右端（尾部），
+        而出站事件正好与入站事件顺序相反（从最右端一直传播到最左端）。这个顺序是定死的，Netty总是将ChannelPipeline的入站口作为头部，
+        而将出站口作为尾部。在事件传播的过程中，ChannelPipeline会判断下一个ChannelHandler的类型是否和事件的运动方向相匹配，如果不匹配，
+        就跳过该ChannelHandler并继续检查下一个（保证入站事件只会被ChannelInboundHandler处理），一个ChannelHandler也可以同时实现
+        ChannelInboundHandler与ChannelOutboundHandler，它在入站事件与出站事件中都会被调用。
+        
+        在阅读ChannelHandler的源码时，发现很多方法需要一个ChannelHandlerContext类型的参数，该接口是ChannelPipeline与
+        ChannelHandler之间相关联的关键。ChannelHandlerContext可以通知ChannelPipeline中的当前ChannelHandler的下一个ChannelHandler，
+        还可以动态地改变当前ChannelHandler在ChannelPipeline中的位置（通过调用ChannelPipeline中的各种方法来修改）。
+        ChannelHandlerContext负责了在同一个ChannelPipeline中的ChannelHandler与其他ChannelHandler之间的交互，
+        每个ChannelHandlerContext都对应了一个ChannelHandler。在DefaultChannelPipeline的源码中，已经表现的很明显了。
+        
+    *EventLoop
+        为了最大限度地提供高性能和可维护性，Netty设计了一套强大又易用的线程模型。在一个网络框架中，最重要的能力是能够快速高效地处理
+        在连接的生命周期内发生的各种事件，与之相匹配的程序构造被称为事件循环，Netty定义了接口EventLoop来负责这项工作。
+                
+        如果是经常用Java进行多线程开发的童鞋想必经常会使用到线程池，也就是Executor这套API。Netty就是从Executor（java.util.concurrent）
+        之上扩展了自己的EventExecutorGroup（io.netty.util.concurrent），同时为了与Channel的事件进行交互，还扩展了EventLoopGroup接口
+        （io.netty.channel）。在io.netty.util.concurrent包下的EventExecutorXXX负责实现线程并发相关的工作，而在io.netty.channel包下
+        的EventLoopXXX负责实现网络编程相关的工作（处理Channel中的事件）。
+        
+        在Netty的线程模型中，一个EventLoop将由一个永远不会改变的Thread驱动，而一个Channel一生只会使用一个EventLoop
+        （但是一个EventLoop可能会被指派用于服务多个Channel），在Channel中的所有I/O操作和事件都由EventLoop中的线程处理，
+        也就是说一个Channel的一生之中都只会使用到一个线程。不过在Netty3，只有入站事件会被EventLoop处理，所有出站事件都会由调用线程处理，
+        这种设计导致了ChannelHandler的线程安全问题。Netty4简化了线程模型，通过在同一个线程处理所有事件，既解决了这个问题，
+        还提供了一个更加简单的架构。
+        
+        为了确保一个Channel的整个生命周期中的I/O事件会被一个EventLoop负责，Netty通过inEventLoop()方法来判断当前执行的线程的身份，
+        确定它是否是分配给当前Channel以及它的EventLoop的那一个线程。如果当前（调用）线程正是EventLoop中的线程，那么所提交的任务将会被直接执行，
+        否则，EventLoop将调度该任务以便稍后执行，并将它放入内部的任务队列（每个EventLoop都有它自己的任务队列，从SingleThreadEventLoop
+        的源码就能发现很多用于调度内部任务队列的方法），在下次处理它的事件时，将会执行队列中的那些任务。这种设计可以让任何线程与Channel直接交互，
+        而无需在ChannelHandler中进行额外的同步。
+        从性能上来考虑，千万不要将一个需要长时间来运行的任务放入到任务队列中，它会影响到该队列中的其他任务的执行。解决方案是使用一个专门的
+        EventExecutor来执行它（ChannelPipeline提供了带有EventExecutorGroup参数的addXXX()方法，该方法可以将传入的ChannelHandler
+        绑定到你传入的EventExecutor之中），这样它就会在另一条线程中执行，与其他任务隔离。
+        
+        EventLoopGroup负责管理和分配EventLoop（创建EventLoop和为每个新创建的Channel分配EventLoop），根据不同的传输类型，
+        EventLoop的创建和分配方式也不同。例如，使用NIO传输类型，EventLoopGroup就会只使用较少的EventLoop（一个EventLoop服务于多个Channel），
+        这是因为NIO基于I/O多路复用，一个线程可以处理多个连接，而如果使用的是OIO，那么新创建一个Channel（连接）就需要分配一个EventLoop（线程）。
+        
+        EventLoopGroup是一组EventLoop的抽象，由于Netty对Reactor模式进行了变种，实际上为更好的利用多核CPU资源，
+        Netty实例中一般会有多个EventLoop同时工作，每个EventLoop维护着一个Selector实例，类似单线程Reactor模式地工作着。
+        至于多少线程可有用户决定，Netty也根据实际上的处理器核数提供了一个默认的数字，我们也建议使用这个数字
+        Runtime.getRuntime().availableProcessors() * 2
+        
+        EventLoopGroup提供next接口，可以总一组EventLoop里面按照一定规则获取其中一个EventLoop来处理任务，
+        对于EventLoopGroup这里需要了解的是在Netty中，在Netty服务器编程中我们需要BossEventLoopGroup和WorkerEventLoopGroup
+        两个EventLoopGroup来进行工作。通常一个服务端口即一个ServerSocketChannel对应一个Selector和一个EventLoop线程，
+        也就是我们建议BossEventLoopGroup的线程数参数这是为1。BossEventLoop负责接收客户端的连接并将SocketChannel交给
+        WorkerEventLoopGroup来进行IO处理。
+        
+        如上图，BossEventLoopGroup通常是一个单线程的EventLoop，EventLoop维护着一个注册了ServerSocketChannel的Selector实例，
+        BoosEventLoop不断轮询Selector将连接事件分离出来，通常是OP_ACCEPT事件，然后将accept得到的SocketChannel交给WorkerEventLoopGroup，
+        WorkerEventLoopGroup会由next选择其中一个EventLoopGroup来将这个SocketChannel注册到其维护的Selector并对其后续的IO事件进行处理。
+        在Reactor模式中BossEventLoopGroup主要是对多线程的扩展，而每个EventLoop的实现涵盖IO事件的分离，和分发（Dispatcher）。
+        
+        关于IO密集型和CPU密集型的思考
+        
+        Netty基于单线程设计的EventLoop能够同时处理成千上万的客户端连接的IO事件，缺点是单线程不能够处理时间过长的任务，
+        这样会阻塞使得IO事件的处理被阻塞，严重的时候回造成IO事件堆积，服务不能够高效响应客户端请求。所谓时间过长的任务通常是占用CPU资源
+        比较长的任务，也即CPU密集型，对于业务应用也可能是业务代码的耗时。这点和Node是极其相似的，我可以认为这是基于单线程的EventLoop
+        模型的通病，我们不能够将过长的任务交给这个单线程来处理，也就是不适合CPU密集型应用。那么问题怎么解决呢，参照Node的解决方案，
+        当我们遇到需要处理时间很长的任务的时候，我们可以将它交给子线程来处理，主线程继续去EventLoop，当子线程计算完毕再讲结果交给主线程。
+        这也是通常基于Netty的应用的解决方案，通常业务代码执行时间比较长，我们不能够把业务逻辑交给这个单线程来处理，因此我们需要额外的
+        线程池来分配线程资源来专门处理耗时较长的业务逻辑，这是比较通用的设计方案。
+        
+    *Bootstrap
+        在深入了解地Netty的核心组件之后，发现它们的设计都很模块化，如果想要实现你自己的应用程序，就需要将这些组件组装到一起。
+        Netty通过Bootstrap类，以对一个Netty应用程序进行配置（组装各个组件），并最终使它运行起来。对于客户端程序和服务器程序所使用到的
+        Bootstrap类是不同的，后者需要使用ServerBootstrap，这样设计是因为，在如TCP这样有连接的协议中，服务器程序往往需要一个以上的Channel，
+        通过父Channel来接受来自客户端的连接，然后创建子Channel用于它们之间的通信，而像UDP这样无连接的协议，它不需要每个连接都创建子Channel，
+        只需要一个Channel即可。
+        
+    (推荐阅读)
+    https://www.cnblogs.com/heavenhome/articles/6554262.html
         
                 
                 
-                
-                
-                
-                
+##spark
+
+    spark背景
+        什么是spark
+            Spark生态系统已经发展成为一个包含多个子项目的集合，其中包含SparkSQL、Spark Streaming、GraphX、MLlib等子项目，
+            Spark是基于内存计算的大数据并行计算框架。Spark基于内存计算，提高了在大数据环境下数据处理的实时性，同时保证了高容错性和高可伸缩性，
+            允许用户将Spark部署在大量廉价硬件之上，形成集群。
+        Spark与Hadoop
+            Spark是一个计算框架,而Hadoop中包含计算框架MapReduce和分布式文件系统HDFS,Hadoop更广泛地说还包括在其生态系统上的其他系统.
+        为什么使用Spark?
+            Hadoop的MapReduce计算模型存在问题:
+            Hadoop的MapReduce的核心是Shuffle(洗牌).在整个Shuffle的过程中,至少产生6次I/O流.基于MapReduce计算引擎通常会将结果
+            输出到次盘上,进行存储和容错.另外,当一些查询(如:hive)翻译到MapReduce任务是,往往会产生多个Stage,而这些Stage有依赖底层
+            文件系统来存储每一个Stage的输出结果,而I/O的效率往往较低,从而影响MapReduce的运行速度.
+        Spark的特点: 快, 易用, 通用,兼容性
+            快：与Hadoop的MapReduce相比，Spark基于内存的运算要快100倍以上，基于硬盘的运算也要快10倍以上。
+                Spark实现了高效的DAG执行引擎，可以通过基于内存来高效处理数据流。
+            易用：Spark支持Java、Python和Scala的API，还支持超过80种高级算法，使用户可以快速构建不同的应用。而且Spark支持交互式
+                的Python和Scala的shell，可以非常方便地在这些shell中使用Spark集群来验证解决问题的方法。
+            通用：Spark提供了统一的解决方案。Spark可以用于批处理、交互式查询（Spark SQL）、实时流处理（Spark Streaming）、
+                机器学习（Spark MLlib）和图计算（GraphX）。这些不同类型的处理都可以在同一个应用中无缝使用。Spark统一的解决方案非常具有吸引力，毕竟任何公司都想用统一的平台去处理遇到的问题，减少开发和维护的人力成本和部署平台的物力成本。
+            兼容性：Spark 可以非常方便地与其他的开源产品进行融合。比如，Spark 可以使用Hadoop 的 YARN 和 Apache Mesos 作为它的
+                资源管理和调度器.并且可以处理所有 Hadoop 支持的数据，包括 HDFS、HBase 和 Cassandra 等。这对于已经部署Hadoop 集群
+                的用户特别重要，因为不需要做任何数据迁移就可以使用 Spark 的强大处理能力。Spark 也可以不依赖于第三方的资源管理和调度器，
+                它实现了Standalone 作为其内置的资源管理和调度框架，这样进一步降低了 Spark 的使用门槛，使得所有人都可以非常容易地部署和使用
+                 Spark。此外，Spark 还提供了在EC2 上部Standalone 的 Spark 集群的工具。
+        Spark的生态系统
+            1.Spark Streaming:
+                Spark Streaming基于微批量方式的计算和处理,可以用于处理实时的流数据.它使用DStream,简单来说是一个弹性分布式数据集(RDD)系列,
+                处理实时数据.数据可以从Kafka,Flume,Kinesis或TCP套接字等众多来源获取,并且可以使用由高级函数（如 map，reduce，join 和 window）
+                开发的复杂算法进行流数据处理。最后，处理后的数据可以被推送到文件系统，数据库和实时仪表板。
+            2.Spark SQL
+                SPark SQL可以通过JDBC API将Spark数据集暴露出去,而且还可以用传统的BI和可视化工具在Spark数据上执行类似SQL的查询,
+                用户哈可以用Spark SQL对不同格式的数据(如Json, Parque以及数据库等)执行ETl,将其转化,然后暴露特定的查询.
+            3.Spark MLlib
+                MLlib是一个可扩展的Spark机器学习库，由通用的学习算法和工具组成，包括二元分类、线性回归、聚类、协同过滤、梯度下降以及底层优化原语。
+            4.Spark Graphx:
+                GraphX是用于图计算和并行图计算的新的（alpha）Spark API。通过引入弹性分布式属性图（Resilient Distributed Property Graph），
+                一种顶点和边都带有属性的有向多重图，扩展了Spark RDD。为了支持图计算，GraphX暴露了一个基础操作符集合（如subgraph，
+                joinVertices和aggregateMessages）和一个经过优化的Pregel API变体。此外，GraphX还包括一个持续增长的用于简化图分析任务的图算法和构建器集合。
+            5.Tachyon
+                Tachyon是一个以内存为中心的分布式文件系统,能够提供内存级别速度的跨集群框架(如Spark和mapReduce)的可信文件共享.它将工作集文件缓存在内存中,从而避免到磁盘中加载需要经常读取的数据集,通过这一机制,不同的作业/查询和框架可以内存级的速度访问缓存文件.
+                此外，还有一些用于与其他产品集成的适配器，如Cassandra（Spark Cassandra 连接器）和R（SparkR）。Cassandra Connector可用于访问存储在Cassandra数据库中的数据并在这些数据上执行数据分析。
+            6.Mesos
+                Mesos是一个资源管理框架
+                提供类似于YARN的功能
+                用户可以在其中插件式地运行Spark,MapReduce,Tez等计算框架任务
+                Mesos对资源和任务进行隔离,并实现高效的资源任务调度
+            7.BlinkDB
+                BlinkDB是一个用于在海量数据上进行交互式SQL的近似查询引擎
+                允许用户通过查询准确性和查询时间之间做出权衡,完成近似查询
+                核心思想:通过一个自适应优化框架,随着时间的推移,从原始数据建立并维护一组多维样本,通过一个动态样本选择策略,选择一个适当大小的示例,然后基于查询的准确性和响应时间满足用户查询需求
+    
+        Spark架构采用了分布式计算中的Master-Slave模型。Master是对应集群中的含有Master进程的节点，Slave是集群中含有Worker进程的节点。
+            Master作为整个集群的控制器，负责整个集群的正常运行；Worker相当于是计算节点，接收主节点命令与进行状态汇报；Executor负责任务的执行；
+            Client作为用户的客户端负责提交应用，Driver负责控制一个应用的执行.
+        Spark集群部署后,需要在主节点和从节点分别启动master进程和Worker进程,对整个集群进行控制.在一个Spark应用的执行程序中.
+            Driver和Worker是两个重要的角色.Driver程序是应用逻辑执行的起点，负责作业的调度,即Task任务的发布,而多个Worker用来管理计算
+            节点和创建Executor并行处理任务.在执行阶段,Driver会将Task和Task所依赖的file和jar序列化后传递给对应的Worker机器.
+            同时Executor对相应数据分区的任务进行处理.
+        Sparkde架构中的基本组件:
+            ClusterManager:在standlone模式中即为Master(主节点),控制整个集群.监控Worker.在Yarn模式中为资源管理器.
+            Worker:从节点,负责控制计算节点,启动Ex而粗投入或Driver
+            NodeManager:负责计算节点的控制。
+            Driver:运行Application的main() 函数并创建SparkContext
+            Executor: 执行器,在worker node上执行任务组件,用于启动线程执行任务.每个Application拥有独立的一组Executors
+            SparkContext: 整个应用的上下文,监控应用的生命周期
+            RDD:弹性分布式集合,spark的基本计算单元，一组RDD可形成执行的有向无环图RDD Graph
+            DAG Scheduler: 根据作业(Job)构建基于Stage的DAG,并交给Stage给TaskScheduler
+            TaskScheduler：将任务（Task）分发给Executor执行
+            SparkEnv：线程级别的上下文，存储运行时的重要组件的引用。SparkEnv内创建并包含如下一些重要组件的引用。
+            MapOutPutTracker：负责Shuffle元信息的存储。
+            BroadcastManager：负责广播变量的控制与元信息的存储。
+            BlockManager：负责存储管理、创建和查找块。
+            MetricsSystem：监控运行时性能指标信息。
+            SparkConf：负责存储配置信息。
+            *Spark的整体流程:client提交应用,Master找到一个Worker启动Driver,Driver向Master或者向资源管理器申请资源,之后将应用转化为RDD Graph，
+            再由DAGScheduler将RDD Graph转化为Stage的有向无环图提交给TaskScheduler，由TaskScheduler提交任务给Executor执行。
+            在任务执行的过程中，其他组件协同工作，确保整个应用顺利执行。
+
+        spark解决单点问题
+            启动后执行jps命令，主节点上有Master进程，其他子节点上有Work进行，登录Spark管理界面查看集群状态（主节点）：http://node-1:8080/
+            到此为止，Spark集群安装完毕，但是有一个很大的问题，那就是Master节点存在单点故障，要解决此问题，就要借助zookeeper，
+            并且启动至少两个Master节点来实现高可靠，配置方式比较简单：
+            Spark集群规划：node-1，node-2是Master；node-3，node-4，node-5是Worker
+            安装配置zk集群，并启动zk集群
+            停止spark所有服务，修改配置文件spark-env.sh，在该配置文件中删掉SPARK_MASTER_IP并添加如下配置
+            export SPARK_DAEMON_JAVA_OPTS="-Dspark.deploy.recoveryMode=ZOOKEEPER -Dspark.deploy.zookeeper.url=zk1,zk2,zk3 
+            -Dspark.deploy.zookeeper.dir=/spark"
+            1.在node1节点上修改slaves配置文件内容指定worker节点
+            2.在node1上执行$SPARK_HOME/sbin/start-all.sh，然后在node2上执行$SPARK_HOME/sbin/start-master.sh启动第二个Master
+    
+        
+        
+    
+    
+    
+    
+    
+    
+      
                 
