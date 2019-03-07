@@ -3359,6 +3359,7 @@
                 
                 
 ##spark
+https://blog.csdn.net/pengzonglu7292/article/details/80554507   (面试题)
 
     spark背景
         什么是spark
@@ -3450,13 +3451,490 @@
             1.在node1节点上修改slaves配置文件内容指定worker节点
             2.在node1上执行$SPARK_HOME/sbin/start-all.sh，然后在node2上执行$SPARK_HOME/sbin/start-master.sh启动第二个Master
     
-        
-        
-    
-    
-    
-    
-    
-    
-      
+    基本概念
+        spark RDD
+            RDD概述
+                什么是RDD
+                    RDD（Resilient Distributed Dataset）叫做分布式数据集，是Spark中最基本的数据抽象，它代表一个不可变、可分区、
+                    里面的元素可并行计算的集合。RDD具有数据流模型的特点：自动容错、位置感知性调度和可伸缩性。RDD允许用户在执行多个查询时
+                    显式地将工作集缓存在内存中，后续的查询能够重用工作集，这极大地提升了查询速度。
+                RDD的属性
+                    一组分片（Partition），即数据集的基本组成单位。对于RDD来说，每个分片都会被一个计算任务处理，并决定并行计算的粒度。
+                    用户可以在创建RDD时指定RDD的分片个数，如果没有指定，那么就会采用默认值。默认值就是程序所分配到的CPU Core的数目。
+                    一个计算每个分区的函数。Spark中RDD的计算是以分片为单位的，每个RDD都会实现compute函数以达到这个目的。compute函数
+                    会对迭代器进行复合，不需要保存每次计算的结果。
+                    RDD之间的依赖关系。RDD的每次转换都会生成一个新的RDD，所以RDD之间就会形成类似于流水线一样的前后依赖关系。在部分
+                    分区数据丢失时，Spark可以通过这个依赖关系重新计算丢失的分区数据，而不是对RDD的所有分区进行重新计算。
+                    一个Partitioner，即RDD的分片函数。当前Spark中实现了两种类型的分片函数，一个是基于哈希的HashPartitioner，
+                    另外一个是基于范围的RangePartitioner。只有对于于key-value的RDD，才会有Partitioner，非key-value的RDD的
+                    Parititioner的值是None。Partitioner函数不但决定了RDD本身的分片数量，也决定了parent RDD Shuffle输出时的分片数量。
+                    一个列表，存储存取每个Partition的优先位置（preferred location）。对于一个HDFS文件来说，这个列表保存的就是每个
+                    Partition所在的块的位置。按照“移动数据不如移动计算”的理念，Spark在进行任务调度的时候，会尽可能地将计算任务分配
+                    到其所要处理数据块的存储位置。
+                RDD创建
+                    一旦分布式数据集（distData）被创建好，它们将可以被并行操作。例如，我们可以调用distData.reduce(lambda a, b: a + b)
+                    来将数组的元素相加。我们会在后续的分布式数据集运算中进一步描述。
+                    并行集合的一个重要参数是slices，表示数据集切分的份数。Spark将会在集群上为每一份数据起一个任务。典型地，
+                    你可以在集群的每个CPU上分布2-4个slices. 一般来说，Spark会尝试根据集群的状况，来自动设定slices的数目。然而，
+                    你也可以通过传递给parallelize的第二个参数来进行手动设置。（例如：sc.parallelize(data, 10)).
+
+        Spark 分区(Partition)的认识、理解和应用
+        https://blog.csdn.net/zhangzeyuan56/article/details/80935034
+            什么是分区以及为什么要分区?
+                Spark RDD 是一种分布式的数据集，由于数据量很大，因此要它被切分并存储在各个结点的分区当中。从而当我们对RDD进行操作时，
+                实际上是对每个分区中的数据并行操作。
+            分区的3种方式
+                1、HashPartitioner
+                scala> val counts = sc.parallelize(List((1,'a'),(1,'aa'),(2,'b'),(2,'bb'),(3,'c')), 3)
+                .partitionBy(new HashPartitioner(3))
+                HashPartitioner确定分区的方式：partition = key.hashCode () % numPartitions
                 
+                2、RangePartitioner
+                scala> val counts = sc.parallelize(List((1,'a'),(1,'aa'),(2,'b'),(2,'bb'),(3,'c')), 3)
+                .partitionBy(new RangePartitioner(3,counts))
+                RangePartitioner会对key值进行排序，然后将key值被划分成3份key值集合。
+                
+                3、CustomPartitioner
+                CustomPartitioner可以根据自己具体的应用需求，自定义分区。
+                class CustomPartitioner(numParts: Int) extends Partitioner {
+                 override def numPartitions: Int = numParts
+                 override def getPartition(key: Any): Int =
+                 {
+                       if(key==1)){
+                	0
+                       } else if (key==2){
+                       1} else{ 
+                       2 }
+                  } 
+                }
+                scala> val counts = sc.parallelize(List((1,'a'),(1,'aa'),(2,'b'),(2,'bb'),(3,'c')), 3).partitionBy(new CustomPartitioner(3))
+
+            *理解从HDFS读入文件默认是怎样分区的
+                Spark从HDFS读入文件的分区数默认等于HDFS文件的块数(blocks)，HDFS中的block是分布式存储的最小单元。
+                如果我们上传一个30GB的非压缩的文件到HDFS，HDFS默认的块容量大小128MB，因此该文件在HDFS上会被分为235块(30GB/128MB)；
+                Spark读取SparkContext.textFile()读取该文件，默认分区数等于块数即235。
+                
+                
+            如何设置合理的分区数
+                1、分区数越多越好吗？
+                不是的，分区数太多意味着任务数太多，每次调度任务也是很耗时的，所以分区数太多会导致总体耗时增多。
+                2、分区数太少会有什么影响？
+                分区数太少的话，会导致一些结点没有分配到任务；另一方面，分区数少则每个分区要处理的数据量就会增大，从而对每个结点的内存
+                要求就会提高；还有分区数不合理，会导致数据倾斜问题。
+                3、合理的分区数是多少？如何设置？
+                总核数=executor-cores * num-executor 
+                一般合理的分区数设置为总核数的2~3倍
+                
+        *spark内存管理
+            下文介绍的内存模型全部指 Executor 端的内存模型， Driver 端的内存模型本文不做介绍。统一内存管理模块包括了堆内内存
+            (On-heap Memory)和堆外内存(Off-heap Memory)两大区域，下面对这两块区域进行详细的说明
+            
+            *堆内内存(On-heap Memory)
+                默认情况下，Spark 仅仅使用了堆内内存。Executor 端的堆内内存区域大致可以分为以下四大块：
+                
+                1.Execution 内存：主要用于存放 Shuffle、Join、Sort、Aggregation 等计算过程中的临时数据
+                2.Storage 内存：主要用于存储 spark 的 cache 数据，例如RDD的缓存、unroll数据；
+                3.用户内存（User Memory）：主要用于存储 RDD 转换操作所需要的数据，例如 RDD 依赖等信息。
+                4.预留内存（Reserved Memory）：系统预留内存，会用来存储Spark内部对象。
+                
+                systemMemory = Runtime.getRuntime.maxMemory，其实就是通过参数 spark.executor.memory 或 --executor-memory 配置的。
+                reservedMemory 在 Spark 2.2.1 中是写死的，其值等于 300MB，这个值是不能修改的（如果在测试环境下，我们可以通过 spark.testing.reservedMemory 参数进行修改）；
+                usableMemory = systemMemory - reservedMemory，这个就是 Spark 可用内存；
+                
+            堆外内存(Off-heap Memory)
+                默认情况下，堆外内存是关闭的，我们可以通过 spark.memory.offHeap.enabled 参数启用，并且通过 
+                spark.memory.offHeap.size 设置堆外内存大小，单位为字节。如果堆外内存被启用，那么 Executor 
+                内将同时存在堆内和堆外内存，两者的使用互补影响，这个时候 Executor 中的 Execution 内存是堆内的 
+                Execution 内存和堆外的 Execution 内存之和，同理，Storage 内存也一样。相比堆内内存，堆外内存只区分 
+                Execution 内存和 Storage 内存，其内存分布如下图所示：
+
+            *Execution 内存和 Storage 内存动态调整
+            https://www.iteblog.com/archives/2342.html
+                细心的同学肯定看到上面两张图中的 Execution 内存和 Storage 内存之间存在一条虚线，这是为什么呢？
+                
+                用过 Spark 的同学应该知道，在 Spark 1.5 之前，Execution 内存和 Storage 内存分配是静态的，换句话说就是如果
+                 Execution 内存不足，即使 Storage 内存有很大空闲程序也是无法利用到的；反之亦然。这就导致我们很难进行内存的调优工作，
+                 我们必须非常清楚地了解 Execution 和 Storage 两块区域的内存分布。而目前 Execution 内存和 Storage 内存可以互相共享的。
+                 也就是说，如果 Execution 内存不足，而 Storage 内存有空闲，那么 Execution 可以从 Storage 中申请空间；反之亦然。
+                 所以上图中的虚线代表 Execution 内存和 Storage 内存是可以随着运作动态调整的，这样可以有效地利用内存资源。
+                 Execution 内存和 Storage 内存之间的动态调整可以概括如下：
+                    
+                具体的实现逻辑如下：
+                
+                程序提交的时候我们都会设定基本的 Execution 内存和 Storage 内存区域（通过 spark.memory.storageFraction 参数设置）；
+                在程序运行时，如果双方的空间都不足时，则存储到硬盘；将内存中的块存储到磁盘的策略是按照 LRU 规则进行的。
+                若己方空间不足而对方空余时，可借用对方的空间;（存储空间不足是指不足以放下一个完整的 Block）
+                Execution 内存的空间被对方占用后，可让对方将占用的部分转存到硬盘，然后"归还"借用的空间
+                Storage 内存的空间被对方占用后，目前的实现是无法让对方"归还"，因为需要考虑 Shuffle 过程中的很多因素，
+                实现起来较为复杂；而且 Shuffle 过程产生的文件在后面一定会被使用到，而 Cache 在内存的数据不一定在后面使用。
+                注意，上面说的借用对方的内存需要借用方和被借用方的内存类型都一样，都是堆内内存或者都是堆外内存，
+                不存在堆内内存不够去借用堆外内存的空间。
+            
+            *Task 之间内存分布
+                为了更好地使用使用内存，Executor 内运行的 Task 之间共享着 Execution 内存。具体的，Spark 内部维护了一个 HashMap
+                 用于记录每个 Task 占用的内存。当 Task 需要在 Execution 内存区域申请 numBytes 内存，其先判断 HashMap 
+                 里面是否维护着这个 Task 的内存使用情况，如果没有，则将这个 Task 内存使用置为0，并且以 TaskId 为 key，内存使用为 
+                 value 加入到 HashMap 里面。之后为这个 Task 申请 numBytes 内存，如果 Execution 内存区域正好有大于 numBytes 
+                 的空闲内存，则在 HashMap 里面将当前 Task 使用的内存加上 numBytes，然后返回；如果当前 Execution 内存区域
+                 无法申请到每个 Task 最小可申请的内存，则当前 Task 被阻塞，直到有其他任务释放了足够的执行内存，该任务才可以被唤醒。
+                 每个 Task 可以使用 Execution 内存大小范围为 1/2N ~ 1/N，其中 N 为当前 Executor 内正在运行的 Task 个数。一个 
+                 Task 能够运行必须申请到最小内存为 (1/2N * Execution 内存)；当 N = 1 的时候，Task 可以使用全部的 Execution 内存。
+                
+                比如如果 Execution 内存大小为 10GB，当前 Executor 内正在运行的 Task 个数为5，则该 Task 可以申请的内存范围为
+                 10 / (2 * 5) ~ 10 / 5，也就是 1GB ~ 2GB的范围。
+        
+        *shuffle
+        https://blog.csdn.net/shujuelin/article/details/84100842    (比较详细,必看)
+            Shuffle简介
+                Shuffle描述着数据从map task输出到reduce task输入的这段过程。shuffle是连接Map和Reduce之间的桥梁，
+                Map的输出要用到Reduce中必须经过shuffle这个环节，shuffle的性能高低直接影响了整个程序的性能和吞吐量。
+                因为在分布式情况下，reduce task需要跨节点去拉取其它节点上的map task结果。这一过程将会产生网络资源消耗和内存，
+                磁盘IO的消耗。通常shuffle分为两部分：Map阶段的数据准备和Reduce阶段的数据拷贝处理。一般将在map端的Shuffle称之
+                为Shuffle Write，在Reduce端的Shuffle称之为Shuffle Read.
+            Hadoop MapReduce Shuffle
+                Apache Spark 的 Shuffle 过程与 Apache Hadoop 的 Shuffle 过程有着诸多类似，一些概念可直接套用，例如，
+                Shuffle 过程中，提供数据的一端，被称作 Map 端，Map 端每个生成数据的任务称为 Mapper，对应的，接收数据的一端，
+                被称作 Reduce 端，Reduce 端每个拉取数据的任务称为 Reducer，Shuffle 过程本质上都是将 Map 端获得的数据使用分区器
+                进行划分，并将数据发送给对应的 Reducer 的过程。
+        
+            map端的Shuffle简述:
+                1)input, 根据split输入数据，运行map任务;
+                2)patition, 每个map task都有一个内存缓冲区，存储着map的输出结果;
+                3)spill, 当缓冲区快满的时候需要将缓冲区的数据以临时文件的方式存放到磁盘;
+                4)merge, 当整个map task结束后再对磁盘中这个map task产生的所有临时文件做合并，生成最终的正式输出文件，然后等待reduce task来拉数据。
+            reduce 端的Shuffle简述:
+                reduce task在执行之前的工作就是不断地拉取当前job里每个map task的最终结果，然后对从不同地方拉取过来的数据不断地做merge，也最终形成一个文件作为reduce task的输入文件。
+                1) Copy过程，拉取数据。
+                2)Merge阶段，合并拉取来的小文件
+                3)Reducer计算
+                4)Output输出计算结果
+        
+            什么时候需要 shuffle writer
+            https://www.cnblogs.com/itboys/p/9201750.html
+                
+                中间就涉及到shuffle 过程，前一个stage 的 ShuffleMapTask 进行 shuffle write， 把数据存储在 blockManager 上面，
+                 并且把数据位置元信息上报到 driver 的 mapOutTrack 组件中， 下一个 stage 根据数据位置元信息， 进行 shuffle read，
+                  拉取上个stage 的输出数据。
+                这篇文章讲述的就是其中的 shuffle write 过程。
+                
+            shuffle 写
+                版本二的优点:就是为了减少这么多小文件的生成 
+                bucket的数量=cpu*resultTask的个数 
+                版本二设计的原理:一个shuffleMapTask还是会写入resultTask对应个数的本地文件，但是当下一个shuffleMapTask运行的时候会直接把数据写到之前已经建立好的本地文件，这个文件可以复用，这种复用机制叫做consolidation机制 
+                我们把这一组的shuffle文件称为shuffleGroup,每个文件中都存储了很多shuffleMapTask对应的数据，这个文件叫做segment,这个时候因为不同的shuffleMapTask都是存在一个文件中 
+                所以建立索引文件，来标记shuffleMapTask在shuffleBlockFile的位置+偏移量，这样就可以在一个文件里面把不同的shuffleMaptask数据分出来 
+                spark shuffle的版本三 
+                版本三的优点：是通过排序建立索引，相比较于版本二，它只有一个临时文件，不管有多少个resultTask都只有一个临时文件， 
+                缺点:这个排序操作是一个消耗CPU的操作，代价是会消耗很多的cpu 
+                版本二占用内存多，打开文件多，但不需排序，速度快。版本三占用内存少，打开文件少，速度相对慢。实践证明使用第二种方案的应用场景更多些。 
+                shuffle的读流程 
+                
+            shuffle 读流程 
+                1.有一个类blockManager，封装了临时文件的位置信息,resultTask先通过blockManager,就知道我从哪个节点拿数据 
+                如果是远程，它就是发起一次socket请求，创建一个socket链接。然后发起一次远程调用，告诉远程的读取程序，读取哪些数据。读到的内容再通过socket传过来。 
+                2.一条条读数据和一块块读数据的优缺点？ 
+                如果是一条条读取的话，实时性好，性能低下
+                
+                一块块读取的话性能高，但是实时性不好
+                Shuffle读由reduce这边发起，它需要先到临时文件中读，一般这个临时文件和reduce不在一台节点上，它需要跨网络去读。但也不排除在一台服务器。不论如何它需要知道临时文件的位置， 
+                这个是谁来告诉它的呢？它有一个BlockManager的类。这里就知道将来是从本地文件中读取，还是需要从远程服务器上读取。 
+                读进来后再做join或者combine的运算。 
+                这些临时文件的位置就记录在Map结构中。 
+                可以这样理解分区partition是RDD存储数据的地方，实际是个逻辑单位，真正要取数据时，它就调用BlockManage去读，它是以数据块的方式来读。 
+                比如一次读取32k还是64k。它不是一条一条读，一条一条读肯定性能低。它读时首先是看本地还是远程，如果是本地就直接读这个文件了， 
+                如果是远程，它就是发起一次socket请求，创建一个socket链接。然后发起一次远程调用，告诉远程的读取程序，读取哪些数据。读到的内容再通过socket传过来。
+            
+            Spark中的shuffle是在干嘛？
+                Shuffle在Spark中即是把父RDD中的KV对按照Key重新分区，从而得到一个新的RDD。也就是说原本同属于父RDD同一个分区的数据需要进入到子RDD的不同的分区。
+                但这只是shuffle的过程，却不是shuffle的原因。为何需要shuffle呢？
+                
+            Shuffle和Stage
+                在分布式计算框架中，比如map-reduce，数据本地化是一个很重要的考虑，即计算需要被分发到数据所在的位置，从而减少数据的移动，提高运行效率。
+                Map-Reduce的输入数据通常是HDFS中的文件，所以数据本地化要求map任务尽量被调度到保存了输入文件的节点执行。但是，
+                有一些计算逻辑是无法简单地获取本地数据的，reduce的逻辑都是如此。对于reduce来说，处理函数的输入是key相同的所有value，
+                但是这些value所在的数据集(即map的输出)位于不同的节点上，因此需要对map的输出进行重新组织，使得同样的key进入相同的reducer。
+                 shuffle移动了大量的数据，对计算、内存、网络和磁盘都有巨大的消耗，因此，只有确实需要shuffle的地方才应该进行shuffle。
+                
+            Stage的划分
+                对于Spark来说，计算的逻辑存在于RDD的转换逻辑中。Spark的调度器也是在依据数据本地化在调度任务，只不过此处的“本地”不仅包括磁盘文件，
+                也包括RDD的分区， Spark会使得数据尽量少地被移动，据此，DAGScheduler把一个job划分为多个Stage，在一个Stage内部，
+                数据是不需要移动地，数据会在本地经过一系列函数的处理，直至确实需要shuffle的地方。
+        
+        spark数据读取 
+            CSV
+            TSV 
+                val spark = SparkSession.builder().appName("fileRead").getOrCreate()
+                        import spark.implicits._
+                        val data1 = spark.read
+                            //          推断数据类型
+                            .option("inferSchema", true)
+                            //          设置空值
+                            .option("nullValue", "?")
+                            //          表示有表头，若没有则为false
+                            .option("header", true)
+                            //          文件路径
+                            .csv("ds/block_10.csv")
+                            //          缓存
+                            .cache()
+                        //          打印数据格式
+                        data1.printSchema()
+                        //      显示数据,false参数为不要把数据截断
+                        data1.show(false)
+                    
+            JSON文件
+                val jsonpath = "/home/wmx/hive/warehouse/trail/sample40.json"
+                val data3 = spark.read.json(jsonpath).cache()
+                data3.printSchema()
+                // 因为有点多只显示1条，不截断
+                data3.show(1,false)
+                
+                
+        列式存储和行式存储相比有哪些优势呢？
+            可以跳过不符合条件的数据，只读取需要的数据，降低IO数据量。 
+            压缩编码可以降低磁盘存储空间。由于同一列的数据类型是一样的，可以使用更高效的压缩编码（例如Run Length Encoding和Delta Encoding）进一步节约存储空间。 
+            只读取需要的列，支持向量运算，能够获取更好的扫描性能。
+        
+        spark 入门map reduce 最好的几个例子
+        https://blog.csdn.net/u013851082/article/details/70142806
+        
+    广播变量和累加器
+        1、能不能将一个RDD使用广播变量广播出去？
+               不能，因为RDD是不存储数据的。可以将RDD的结果广播出去。
+        2、 广播变量只能在Driver端定义，不能在Executor端定义。
+        3、 在Driver端可以修改广播变量的值，在Executor端无法修改广播变量的值。
+        4、如果executor端用到了Driver的变量，如果不使用广播变量在Executor有多少task就有多少Driver端的变量副本。
+        5、如果Executor端用到了Driver的变量，如果使用广播变量在每个Executor中只有一份Driver端的变量副本。
+        
+        累加器在Driver端定义赋初始值，累加器只能在Driver端读取最后的值，在Excutor端更新。
+        
+    Spark job 的执行流程简介
+        Spark job 的执行流程简介
+        我们可以发现，Spark 应用程序在提交执行后，控制台会打印很多日志信息，这些信息看起来是杂乱无章的，但是却在一定程度上体现了一个被提交的 Spark job 在集群中是如何被调度执行的，那么在这一节，将会向大家介绍一个典型的 Spark job 是如何被调度执行的。
+        
+        我们先来了解以下几个概念：
+        
+        DAG: 即 Directed Acyclic Graph，有向无环图，这是一个图论中的概念。如果一个有向图无法从某个顶点出发经过若干条边回到该点，则这个图是一个有向无环图。
+        
+        Job：我们知道，Spark 的计算操作是 lazy 执行的，只有当碰到一个动作 (Action) 算子时才会触发真正的计算。一个 Job 就是由动作算子而产生包含一个或多个 Stage 的计算作业。
+        
+        Stage：Job 被确定后,Spark 的调度器 (DAGScheduler) 会根据该计算作业的计算步骤把作业划分成一个或者多个 Stage。Stage 又分为 ShuffleMapStage 和 ResultStage，前者以 shuffle 为输出边界，后者会直接输出结果，其边界可以是获取外部数据，也可以是以一个 ShuffleMapStage 的输出为边界。每一个 Stage 将包含一个 TaskSet。
+        
+        TaskSet： 代表一组相关联的没有 shuffle 依赖关系的任务组成任务集。一组任务会被一起提交到更加底层的 TaskScheduler。
+        
+        Task：代表单个数据分区上的最小处理单元。分为 ShuffleMapTask 和 ResultTask。ShuffleMapTask 执行任务并把任务的输出划分到 (基于 task 的对应的数据分区) 多个 bucket(ArrayBuffer) 中,ResultTask 执行任务并把任务的输出发送给驱动程序。
+        
+        Spark 的作业任务调度是复杂的，需要结合源码来进行较为详尽的分析，但是这已经超过本文的范围，所以这一节我们只是对大致的流程进行分析。
+        
+        Spark 应用程序被提交后，当某个动作算子触发了计算操作时，SparkContext 会向 DAGScheduler 提交一个作业，接着 DAGScheduler 会根据 RDD 生成的依赖关系划分 Stage，并决定各个 Stage 之间的依赖关系，Stage 之间的依赖关系就形成了 DAG。Stage 的划分是以 ShuffleDependency 为依据的，也就是说当某个 RDD 的运算需要将数据进行 Shuffle 时，这个包含了 Shuffle 依赖关系的 RDD 将被用来作为输入信息，进而构建一个新的 Stage。我们可以看到用这样的方式划分 Stage，能够保证有依赖关系的数据可以以正确的顺序执行。根据每个 Stage 所依赖的 RDD 数据的 partition 的分布，会产生出与 partition 数量相等的 Task，这些 Task 根据 partition 的位置进行分布。其次对于 finalStage 或是 mapStage 会产生不同的 Task，最后所有的 Task 会封装到 TaskSet 内提交到 TaskScheduler 去执行。有兴趣的读者可以通过阅读 DAGScheduler 和 TaskScheduler 的源码获取更详细的执行流程。
+    
+    数据源自并行集合
+        调用 SparkContext 的 parallelize 方法，在一个已经存在的 Scala 集合上创建一个 Seq 对象
+    
+    外部数据源
+        Spark支持任何 Hadoop InputFormat 格式的输入，如本地文件、HDFS上的文件、Hive表、HBase上的数据、Amazon S3、Hypertable等，
+        以上都可以用来创建RDD。
+        常用函数是 sc.textFile() ,参数是Path和最小分区数[可选]。Path是文件的 URI 地址，该地址可以是本地路径，或者 hdfs://、s3n:// 
+        等 URL 地址。其次，使用本地文件时，如果在集群上运行要确保worker节点也能访问到文件
+    
+    提交应用的脚本和可选参数
+        可以选择local模式下运行来测试程序，但要是在集群上运行还需要通过spark-submit脚本来完成。官方文档上的示例是这样写的（其中表明哪些是必要参数）：
+        
+        ./bin/spark-submit \
+          --class <main-class> \
+          --master <master-url> \
+          --deploy-mode <deploy-mode> \
+          --conf <key>=<value> \
+          ... # other options
+          <application-jar> \
+          [application-arguments]
+        常用参数如下：
+        
+        --master 参数来设置 SparkContext 要连接的集群，默认不写就是local[*]【可以不用在SparkContext中写死master信息】
+        
+        --jars 来设置需要添加到 classpath 中的 JAR 包，有多个 JAR 包使用逗号分割符连接
+        
+        --class 指定程序的类入口
+        
+        --deploy-mode 指定部署模式，是在 worker 节点（cluster）上还是在本地作为一个外部的客户端（client）部署您的 driver（默认 : client）
+        
+        这里顺便提一下yarn-client和yarn-cluster区别 cluster-client
+        
+        application-jar : 包括您的应用以及所有依赖的一个打包的 Jar 的路径。该Jar包的 URL 在您的集群上必须是全局可见的，例如，一个 hdfs:// path 或者一个 file:// path 在所有节点是可见的。
+        
+        application-arguments : 传递到您的 main class 的 main 方法的参数
+        
+        driver-memory是 driver 使用的内存，不可超过单机的最大可使用的
+        
+        num-executors是创建多少个 executor
+        
+        executor-memory是各个 executor 使用的最大内存，不可超过单机的最大可使用内存
+        
+        executor-cores是每个 executor 最大可并发执行的 Task 数目
+        
+        #如下是spark on yarn模式下运行计算Pi的测试程序
+        # 有一点务必注意，每行最后换行时务必多敲个空格，否则解析该语句时就是和下一句相连的，不知道会爆些什么古怪的错误
+        [hadoop@master spark-2.4.0-bin-hadoop2.6]$ ./bin/spark-submit \
+        > --master yarn \
+        > --class org.apache.spark.examples.SparkPi \
+        > --deploy-mode client \
+        > --driver-memory 1g \
+        > --num-executors 2 \
+        > --executor-memory 2g \
+        > --executor-cores 2 \
+        > examples/jars/spark-examples_2.11-2.4.0.jar \
+        > 10
+        每次提交都写这么多肯定麻烦，可以写个脚本
+        
+        从文件中加载配置
+        spark-submit 脚本可以从一个 properties 文件加载默认的 Spark configuration values 并且传递它们到您的应用中去。默认情况下，它将从 Spark 目录下的 conf/spark-defaults.conf 读取配置。更多详细信息，请看 加载默认配置 部分。
+        
+        加载默认的 Spark 配置，这种方式可以消除某些标记到 spark-submit 的必要性。例如，如果 spark.master 属性被设置了，您可以在 spark-submit 中安全的省略。一般情况下，明确设置在 SparkConf 上的配置值的优先级最高，然后是传递给 spark-submit 的值，最后才是 default value（默认文件）中的值。
+        
+        如果您不是很清楚其中的配置设置来自哪里，您可以通过使用 --verbose 选项来运行 spark-submit 打印出细粒度的调试信息
+        
+        更多内容可参考文档：提交应用 ，Spark-Submit 参数设置说明和考虑
+        
+        配置参数优先级问题
+        sparkConf中配置的参数优先级最高，其次是spark-submit脚本中，最后是默认属性文件（spark-defaults.conf）中的配置参数
+        
+        默认情况下，spark-submit也会从spark-defaults.conf中读取配置
+    
+
+    
+    *常见面试题   
+        RDD五大特性？
+            1、RDD是由一系列的分区组成。
+            2、操作一个RDD实际上操作的是RDD的所有分区。
+            3、RDD之间存在各种依赖关系。
+            4、可选的特性，key-value型的RDD是通过hash进行分区。
+            5、RDD的每一个分区在计算时会选择最佳的计算位置。
+        
+        什么是RDD？
+            RDD产生的意义在于降低开发分布式应用程序的门槛和提高执行效率。RDD全称resilient distributed dataset（弹性分布式数据集），
+            它是一个可以容错的不可变集合，集合中的元素可以进行并行化地处理，Spark是围绕RDDs的概念展开的。RDD可以通过有两种创建的方式，
+            一种是通过已经存在的驱动程序中的集合进行创建，另一种是通引用外部存储系统中的数据集进行创建，这里的外部系统可以是像HDFS或HBase
+            这样的共享文件系统，也可以是任何支持hadoop InputFormat的数据。
+            在源码中，RDD是一个具备泛型的可序列化的抽象类。具备泛型意味着RDD内部存储的数据类型不定，大多数类型的数据都可以存储在RDD之中。
+            RDD是一个抽象类则意味着RDD不能直接使用，我们使用的时候通常使用的是它的子类，如HadoopRDD,BlockRDD,JdbcRDD,MapPartitionsRDD,
+            CheckpointRDD等。
+            
+        spark能都取代hadoop?
+            Spark是一个计算框架，它没有自己的存储，它的存储还得借助于HDFS，所以说Spark不能取代Hadoop,要取代也是取代MapReduce
+        
+        Spark的特点？
+            Apache Spark 是一个快速的处理大规模数据的通用工具。它是一个基于内存计算框架。它有以下的四个特点：
+            1）快速：基于内存的计算比MapReduce快100倍，基于磁盘快10倍。
+            2）易用：编写一个spark的应用程序可以使用 Java, Scala, Python, R，这就使得我们的开发非常地灵活。并且，对比于MapReduce,
+            spark内置了80多个高级操作，这使得开发十分高效和简单。
+            3）运行范围广：spark可以运行在local、yarn、mesos、standalone、kubernetes等多种平台之上。它可以访问诸如HDFS,
+             Cassandra, HBase, S3等多种多样的数据源。
+            4）通用：spark提供了SparkSQL、SparkStreaming、GraphX、MLlib等一系列的分析工具。
+        
+        大数据流式处理框架对比：Storm vs Spark Streaming
+            a.Spark Streaming最低可在0.5秒~2秒内做一次处理，而Storm最快可达到0.1秒，在实时性和容错性上，Spark Streaming不如Strom.
+            b.Spark Streaming的集成性优于Storm,可以通过RDD无缝对接Spark上的所有组件，还可以很容易的与kafka,flume等分布式框架进行集成。
+            c.在数据吞吐量上，Spark Streaming要远远优于Storm。
+            
+            综上所诉，Spark Streaming更适用于大数据流式处理。
+        
+        cache()和persist()方法的区别？
+            cache()在源码底层调用的是persist().
+
+        spark中的join是宽依赖还是债依赖？
+            如果JoinAPI之前被调用的RDD API是宽依赖(存在shuffle), 而且两个join的RDD的分区数量一致，join结果的rdd分区数量也一样，这个时候join api是窄依赖
+            　　除此之外的，rdd 的join api是宽依赖
+            
+        Spark中的map和reduce和mapreduce有什么关系？
+            首先了解一下Mapreduce，它最本质的两个过程就是Map和Reduce，Map的应用在于我们需要数据一对一的元素的映射转换，
+            比如说进行截取，进行过滤，或者任何的转换操作，这些一对一的元素转换就称作是Map；Reduce主要就是元素的聚合，
+            就是多个元素对一个元素的聚合，比如求Sum等，这就是Reduce。
+            
+            其实spark里面也可以实现Mapreduce，但是这里它并不是算法，只是提供了map阶段和reduce阶段，但是在两个阶段提供了很多算法。
+            如Map阶段的map, flatMap, filter, keyBy，Reduce阶段的reduceByKey, sortByKey, mean, gourpBy, sort等。
+            
+        repartition和coalesce区别？
+            他们两个都是RDD的分区进行重新划分
+            一、repartition只是coalesce接口中shuffle为true的简易实现，（假设RDD有N个分区，需要重新划分成M个分区）
+            二、 rdd.coalesce方法的作用是创建CoalescedRDD，
+            假设RDD有N个分区，需要重新划分成M个分区
+            1）如果N>M并且N和M相差不多，(假如N是1000，M是100)那么就可以将N个分区中的若干个分区合并成一个新的分区，最终合并为M个分区，
+            这时可以将shuff设置为false，在shuffl为false的情况下，如果M>N时，coalesce为无效的，不进行shuffle过程，
+            父RDD和子RDD之间是窄依赖关系。
+            2）如果N>M并且两者相差悬殊，这时如果将shuffle设置为false，父子ＲＤＤ是窄依赖关系，他们同处在一个Stage中，
+            就可能造成spark程序的并行度不够，从而影响性能，如果在M为1的时候，为了使coalesce之前的操作有更好的并行度，
+            可以讲shuffle设置为true， 会增加一个shuffle的步骤。
+            3）、N<M。一般情况下N个分区有数据分布不均匀的状况，利用HashPartitioner函数将数据重新分区为M个，
+            这时需要将shuffle设置为true。
+
+
+        DataFrame vs RDD vs DataSet
+            a.基于RDD的编程，不同语言性能是不一样的，而DataFrame是一样的，因为底层会有一个优化器先将代码进行优化。
+            b.对于RDD，暴露给执行引擎的信息只有数据的类型，如RDD[Student]装的是Student,而对于DataFrame,对于外部可见
+                的信息有字段类型，字段key,字段value等。
+            c.RDD是一个数组，DataFrame是一个列式表。
+
+        Spark1.x和2.x的区别。
+            在${SPARK_HOME}/jars目录下有许多jar包，而在spark1.0版本中只有一个大的jar包
+            
+        SparkContext?
+            目前在一个JVM进程中可以创建多个SparkContext，但是只能有一个active级别的。如果你需要创建一个新的SparkContext实例，
+            必须先调用stop方法停掉当前active级别的SparkContext实例。
+            初始化一个SparkContext之前你需要构建一个SparkConf对象，初始化后，就可以使用SparkContext对象所包含的各种方法来创建和
+            操作RDD和共享变量，Spark shell会自动初始化一个SparkContext。
+
+        宽依赖和窄依赖？
+            窄依赖是指父RDD的一个分区至多被子RDD的分区使用一次。(与数据规模无关)
+            宽依赖是指父RDD的一个分区至少被子RDD的分区使用两次。(与数据规模有关)
+            窄依赖的函数有：map, filter, union, join(父RDD是hash-partitioned ), mapPartitions, mapValues 
+            宽依赖的函数有：xxxByKey, join(父RDD不是hash-partitioned ), partitionBy.
+        
+    行转列和列转行
+    https://www.cnblogs.com/ken-jl/p/8570518.html
+       
+
+
+
+
+
+##秒杀实现
+
+    实现难点
+        1. 超买超卖问题的解决。
+        2. 订单持久化，多线程将订单信息写入数据库
+    
+    进阶方案
+        1.访问量还是大。系统还是撑不住。
+        2.防止用户刷新页面导致重复提交。
+        3.脚本攻击
+    
+    解决思路：
+        1.访问量还是过大的话，要看性能瓶颈在哪里，一般来说首先撑不住的是tomcat，考虑优化tomcat，单个tomcat经过实践并发量撑住1000是没有问题的。
+        先搭建tomcat集群，如果瓶颈出现在redis上的话考虑集群redis，这时候消息队列也是必须的，至于采用哪种消息队列框架还是根据实际情况。
+        2.问题2和问题3其实属于同一个问题。这个问题其实属于网络问题的范畴，和我们的秒杀系统不在一个层面上。因此不应该由我们来解决。
+        很多交换机都有防止一个源IP发起过多请求的功能。开源软件也有不少能实现这点。如linux上的TC可以控制。流行的Web服务器Nginx
+        （它也可以看做是一个七层软交换机）也可以通过配置做到这一点。一个IP，一秒钟我就允许你访问我2次，其他软件包直接给你丢了，你还能压垮我吗？
+        交换机也不行了呢？
+        可能你们的客户并发访问量实在太大了，交换机都撑不住了。 这也有办法。我们可以用多个交换机为我们的秒杀系统服务。
+        原理就是DNS可以对一个域名返回多个IP，并且对不同的源IP，同一个域名返回不同的IP。如网通用户访问，就返回一个网通机房的IP；
+        电信用户访问，就返回一个电信机房的IP。也就是用CDN了！ 我们可以部署多台交换机为不同的用户服务。 用户通过这些交换机访问后面数据中心的Redis Cluster进行秒杀作业。
+    
+    
+    https://blog.csdn.net/qq_27631217/article/details/80657271  (redis缓存细节)
+    
+    https://www.jianshu.com/p/d789ea15d060  (整体架构)
+    
+    *秒杀系统的难点
+        首先我们先看下秒杀场景的难点到底在哪？在秒杀场景中最大的问题在于容易产生大并发请求、产生超卖现象和性能问题，下面我们分别分析下下面这三个问题：
+        1）瞬时大并发：一提到秒杀系统给人最深刻的印象是超大的瞬时并发，这时你可以联想到小米手机的抢购场景，在小米手机抢购的场景一般都会有
+            10w＋的用户同时访问一个商品页面去抢购手机，这就是一个典型的瞬时大并发，如果系统没有经过限流或者熔断处理，那么系统瞬间就会崩掉，就好像被DDos攻击一样；
+        2）超卖：秒杀除了大并发这样的难点，还有一个所有电商都会遇到的痛，那就是超卖，电商搞大促最怕什么？最怕的就是超卖，产生超卖了以后会影响
+            到用户体验，会导致订单系统、库存系统、供应链等等，产生的问题是一系列的连锁反应，所以电商都不希望超卖发生，但是在大并发的场景最容易
+            发生的就是超卖，不同线程读取到的当前库存数据可能下个毫秒就被其他线程修改了，如果没有一定的锁库存机制那么库存数据必然出错，
+            都不用上万并发，几十并发就可以导致商品超卖；
+        3）性能：当遇到大并发和超卖问题后，必然会引出另一个问题，那就是性能问题，如何保证在大并发请求下，系统能够有好的性能，让用户能够有
+            更好的体验，不然每个用户都等几十秒才能知道结果，那体验必然是很糟糕的；
+    
+    *秒杀系统方案
+        从整个秒杀系统的架构其实和一般的互联网系统架构本身没有太多的不同，核心理念还是通过缓存、异步、限流来保证系统的高并发和高可用。
+        下面从一笔秒杀交易的流程来描述下秒杀系统架构设计的要点：
+        
