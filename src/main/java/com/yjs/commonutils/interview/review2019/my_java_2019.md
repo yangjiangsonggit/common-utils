@@ -549,6 +549,26 @@
     字节流与字符流
         https://www.cnblogs.com/DONGb/p/7844123.html
         
+    【问题1】为什么连接的时候是三次握手，关闭的时候却是四次握手？
+        答：因为当Server端收到Client端的SYN连接请求报文后，可以直接发送SYN+ACK报文。其中ACK报文是用来应答的，SYN报文是用来同步的。
+        但是关闭连接时，当Server端收到FIN报文时，很可能并不会立即关闭SOCKET，所以只能先回复一个ACK报文，告诉Client端，"你发的FIN
+        报文我收到了"。只有等到我Server端所有的报文都发送完了，我才能发送FIN报文，因此不能一起发送。故需要四步握手。
+    
+    【问题2】为什么TIME_WAIT状态需要经过2MSL(最大报文段生存时间)才能返回到CLOSE状态？
+        答：虽然按道理，四个报文都发送完毕，我们可以直接进入CLOSE状态了，但是我们必须假象网络是不可靠的，有可以最后一个ACK丢失。
+        所以TIME_WAIT状态就是用来重发可能丢失的ACK报文。在Client发送出最后的ACK回复，但该ACK可能丢失。Server如果没有收到ACK，
+        将不断重复发送FIN片段。所以Client不能立即关闭，它必须确认Server接收到了该ACK。Client会在发送出ACK之后进入到TIME_WAIT状态。
+        Client会设置一个计时器，等待2MSL的时间。如果在该时间内再次收到FIN，那么Client会重发ACK并再次等待2MSL。所谓的2MSL是两倍的MSL
+        (Maximum Segment Lifetime)。MSL指一个片段在网络中最大的存活时间，2MSL就是一个发送和一个回复所需的最大时间。如果直到2MSL，
+        Client都没有再次收到FIN，那么Client推断ACK已经被成功接收，则结束TCP连接。
+    
+    【问题3】如果已经建立了连接，但是客户端突然出现故障了怎么办？
+        TCP还设有一个保活计时器，显然，客户端如果出现故障，服务器不能一直等下去，白白浪费资源。服务器每收到一次客户端的请求后都会
+        重新复位这个计时器，时间通常是设置为2小时，若两小时还没有收到客户端的任何数据，服务器就会发送一个探测报文段，以后每隔75分钟
+        发送一次。若一连发送10个探测报文仍然没反应，服务器就认为客户端出了故障，接着就关闭连接。
+    
+    
+    
     
 
     
@@ -3360,6 +3380,7 @@
                 
 ##spark
 https://blog.csdn.net/pengzonglu7292/article/details/80554507   (面试题)
+https://juejin.im/post/58d8daedac502e0058d9edf0 (整体介绍)
 
     spark背景
         什么是spark
@@ -3704,6 +3725,8 @@ https://blog.csdn.net/pengzonglu7292/article/details/80554507   (面试题)
         3、 在Driver端可以修改广播变量的值，在Executor端无法修改广播变量的值。
         4、如果executor端用到了Driver的变量，如果不使用广播变量在Executor有多少task就有多少Driver端的变量副本。
         5、如果Executor端用到了Driver的变量，如果使用广播变量在每个Executor中只有一份Driver端的变量副本。
+        如何更新广播变量
+        通过unpersist()将老的广播变量删除，然后重新广播一遍新的广播变量
         
         累加器在Driver端定义赋初始值，累加器只能在Driver端读取最后的值，在Excutor端更新。
         
@@ -3799,6 +3822,24 @@ https://blog.csdn.net/pengzonglu7292/article/details/80554507   (面试题)
         
         默认情况下，spark-submit也会从spark-defaults.conf中读取配置
     
+    reduceByKey(func, numPartitions=None)
+        也就是，reduceByKey用于对每个key对应的多个value进行merge操作，最重要的是它能够在本地先进行merge操作，并且merge操作可以通过函数自定义。
+    groupByKey(numPartitions=None)
+        也就是，groupByKey也是对每个key进行操作，但只生成一个sequence。需要特别注意“Note”中的话，它告诉我们：如果需要对sequence进行
+        aggregation操作（注意，groupByKey本身不能自定义操作函数），那么，选择reduceByKey/aggregateByKey更好。这是因为groupByKey
+        不能自定义函数，我们需要先用groupByKey生成RDD，然后才能对此RDD通过map进行自定义函数操作。
+
+    Spark on Yarn模式下的不同之处
+        之前提到过on Yarn有yarn-client和yarn-cluster两种模式，在spark-submit脚本中通过--master、--deploy-mode来区分以哪种方式运行 【具体可见：LearningSpark(2)spark-submit可选参数.md】
+        其中，官方文档中所提及--deploy-mode 指定部署模式，是在 worker 节点（cluster）上还是在本地作为一个外部的客户端（client）部署您的 driver（默认 : client），这和接下来所提及的内容有关
+        因为是运行在Yarn集群上，所有没有什么Master、Worker节点，取而代之是ResourceManager、NodeManager（下文会以RM、NM代替）
+        
+        yarn-cluster运行模式
+            首先spark-submit提交Application后会向RM发送请求，请求启动ApplicationMaster（同standalone模式下的Master，但同时该节点也会运行Drive进程【这里和yarn-client有区别】）。RM就会分配container在某个NM上启动ApplicationMaster
+            要执行task就得有Executor，所以ApplicationMaster要向RM申请container来启动Executor。RM分配一些container（就是一些NM节点）给ApplicationMaster用来启动Executor，ApplicationMaster就会连接这些NM（这里NM就如同Worker）。NM启动Executor后向ApplicationMaster注册
+        
+        yarn-client运行模式
+            如上所提的，这种模式的不同在于Driver是部署在本地提交的那台机器上的。过程大致如yarn-cluster，不同在于ApplicationMaster实际上是ExecutorLauncher，而申请到的NodeManager所启动的Executor是要向本地的Driver注册的，而不是向ApplicationMaster注册
 
     
     *常见面试题   
@@ -3888,10 +3929,109 @@ https://blog.csdn.net/pengzonglu7292/article/details/80554507   (面试题)
             窄依赖的函数有：map, filter, union, join(父RDD是hash-partitioned ), mapPartitions, mapValues 
             宽依赖的函数有：xxxByKey, join(父RDD不是hash-partitioned ), partitionBy.
         
+        
     行转列和列转行
     https://www.cnblogs.com/ken-jl/p/8570518.html
        
 
+    parquet
+    http://www.cnblogs.com/ITtangtang/p/7681019.html
+    
+    常用的Transformation：
+        转换	含义
+        map(func)	返回一个新的RDD，该RDD由每一个输入元素经过func函数转换后组成
+        filter(func)	返回一个新的RDD，该RDD由经过func函数计算后返回值为true的输入元素组成
+        flatMap(func)	类似于map，但是每一个输入元素可以被映射为0或多个输出元素（所以func应该返回一个序列，而不是单一元素）
+        mapPartitions(func)	类似于map，但独立地在RDD的每一个分片上运行，因此在类型为T的RDD上运行时，func的函数类型必须是Iterator[T] => Iterator[U]
+        mapPartitionsWithIndex(func)	类似于mapPartitions，但func带有一个整数参数表示分片的索引值，因此在类型为T的RDD上运行时，func的函数类型必须是 (Int, Interator[T]) => Iterator[U]
+        sample(withReplacement, fraction, seed)	根据fraction指定的比例对数据进行采样，可以选择是否使用随机数进行替换，seed用于指定随机数生成器种子
+        union(otherDataset)	对源RDD和参数RDD求并集后返回一个新的RDD
+        intersection(otherDataset)	对源RDD和参数RDD求交集后返回一个新的RDD
+        distinct([numTasks]))	对源RDD进行去重后返回一个新的RDD
+        groupByKey([numTasks])	在一个(K,V)的RDD上调用，返回一个(K, Iterator[V])的RDD
+        reduceByKey(func, [numTasks])	在一个(K,V)的RDD上调用，返回一个(K,V)的RDD，使用指定的reduce函数，将相同key的值聚合到一起，与groupByKey类似，reduce任务的个数可以通过第二个可选的参数来设置
+        aggregateByKey(zeroValue)(seqOp, combOp, [numTasks])	
+        sortByKey([ascending], [numTasks])	在一个(K,V)的RDD上调用，K必须实现Ordered接口，返回一个按照key进行排序的(K,V)的RDD
+        sortBy(func,[ascending], [numTasks])	与sortByKey类似，但是更灵活
+        join(otherDataset, [numTasks])	在类型为(K,V)和(K,W)的RDD上调用，返回一个相同key对应的所有元素对在一起的(K,(V,W))的RDD
+        cogroup(otherDataset, [numTasks])	在类型为(K,V)和(K,W)的RDD上调用，返回一个(K,(Iterable,Iterable))类型的RDD
+        cartesian(otherDataset)	笛卡尔积
+        pipe(command, [envVars])	
+        coalesce(numPartitions)	
+        repartition(numPartitions)	
+        repartitionAndSortWithinPartitions(partitioner)	
+        
+        Action
+        动作	含义
+        reduce(func)	通过func函数聚集RDD中的所有元素，这个功能必须是课交换且可并联的
+        collect()	在驱动程序中，以数组的形式返回数据集的所有元素
+        count()	返回RDD的元素个数
+        first()	返回RDD的第一个元素（类似于take(1)）
+        take(n)	返回一个由数据集的前n个元素组成的数组
+        takeSample(withReplacement,num, [seed])	返回一个数组，该数组由从数据集中随机采样的num个元素组成，可以选择是否用随机数替换不足的部分，seed用于指定随机数生成器种子
+        takeOrdered(n, [ordering])	
+        saveAsTextFile(path)	将数据集的元素以textfile的形式保存到HDFS文件系统或者其他支持的文件系统，对于每个元素，Spark将会调用toString方法，将它装换为文件中的文本
+        saveAsSequenceFile(path)	将数据集中的元素以Hadoop sequencefile的格式保存到指定的目录下，可以使HDFS或者其他Hadoop支持的文件系统。
+        saveAsObjectFile(path)	
+        countByKey()	针对(K,V)类型的RDD，返回一个(K,Int)的map，表示每一个key对应的元素个数。
+        foreach(func)	在数据集的每一个元素上，运行函数func进行更新。
+
+##drools
+    Drools是一款基于Java的开源规则引擎
+    　　实现了将业务决策从应用程序中分离出来。
+    　　优点：
+    　　　　1、简化系统架构，优化应用
+    　　　　2、提高系统的可维护性和维护成本
+    　　　　3、方便系统的整合
+    　　　　4、减少编写“硬代码”业务规则的成本和风险
+    
+    Drools的基础语法：
+        Drl文件内容：
+            package：包路径，该路径是逻辑路径(可以随便写，但是不能不写，最好和文件目录同名，以(.)的方式隔开)，规则文件中永远是第一行
+        　　rule：规则体，以rule开头，以end结尾，每个文件可以包含多个rule	，规则体分为3个部分：LHS，RHS，属性 三大部分
+        　　LHS：(Left Hand Side)，条件部分，在一个规则当中“when”和“then”中间的部分就是LHS部分，在LHS当中，可以包含0~N个条件，如果
+        　　　　LHS为空的话，那么引擎会自动添加一个eval(true)的条件，由于该条件总是返回true，所以LHS为空的规则总是返回true。
+        　　RHS：(Right Hand Side)，在一个规则中“then”后面的部分就是RHS，只有在LHS的所有条件都满足的情况下，RHS部分才会执行。
+
+    Drools的API调用
+        <?xml version="1.0" encoding="UTF-8"?>
+        <kmodule xmlns="http://jboss.org/kie/6.0.0/kmodule">
+            <kbase name="rules" packages="rules.testword">
+                <ksession name="session"/>
+            </kbase>
+        </kmodule>
+        
+    规则语言
+    　　rule “name”
+    　　　　attributes ---->属性
+    　　　　when
+    　　　　　　LHS ---->条件
+    　　　　then
+    　　　　　　RHS	---->结果
+    　　end
+    　　一个规则包含三部分：唯有attributes部分可选，其他都是必填信息
+    　　　　定义当前规则执行的一些属性等，比如是否可被重复执行，过期时间，生效时间等
+    　　　　LHS：定义当前规则的条件，如 when Message();判断当前workingMemory中是否存在Message对象	
+    　　　　RHS：可以写java代码，即当前规则条件满足执行的操作，可以直接调用Fact对象的方法来操作应用
+
+    *Drools 原理
+        DRL 解释执行流程
+             Drools 规则是在 Java 应用程序上运行的，其要执行的步骤顺序由代码确定。为了实现这一点，Drools 规则引擎将业务规则转换成执行树
+            如上图所示，每个规则条件分为小块，在树结构中连接和重用。每次将数据添加到规则引擎中时，它将在与此类似的树中进行求值，
+            并到达一个动作节点，在该节点处，它们将被标记为准备执行特定规则的数据。
+        
+        规则引擎工作方式
+            规则引擎默认不会在规则评估时立即执行业务规则，除非我们强制指定。当我们到达一个事实(Fact)与规则相匹配的节点时，
+            规则评估会将规则操作与触发数据添加到一个叫作议程(Agenda)的组件中，如果同一个事实(Fact)与多个规则相匹配，
+            就认为这些规则是冲突的，议程(Agenda)使用冲突解决策略(Conflict Resolution strategy)管理这些冲突规则的执行顺序。
+            整个生命周期中，规则评估与规则执行之间有着明确的分割。规则操作的执行可能会导致事实(Fact)的更新，从而与其它规则相匹配，
+            导致它们的触发，称之为前向链接。
+
+        规则引擎虽然非常强大，但并非所有场景都适用。一般来说，规则引擎适用的项目都具有以下一个或多个特征：
+            1.存在一个非常复杂的场景，即使对于商业专家也难以完全定义
+            2.没有已知或定义明确的算法解决方案
+            3.有不稳定需求，需要经常更新
+            4.需要快速做出决策，通常是基于部分数据量
 
 
 
@@ -3938,3 +4078,108 @@ https://blog.csdn.net/pengzonglu7292/article/details/80554507   (面试题)
         从整个秒杀系统的架构其实和一般的互联网系统架构本身没有太多的不同，核心理念还是通过缓存、异步、限流来保证系统的高并发和高可用。
         下面从一笔秒杀交易的流程来描述下秒杀系统架构设计的要点：
         
+        
+##算法
+
+    实际中，我们一般仅考量算法在最坏情况下的运行情况，也就是对于规模为 n 的任何输入，算法的最长运行时间。这样做的理由是：
+        1.一个算法的最坏情况运行时间是在任何输入下运行时间的一个上界（Upper Bound）。
+        2.对于某些算法，最坏情况出现的较为频繁。
+        3.大体上看，平均情况通常与最坏情况一样差。  
+        
+    算法分析要保持大局观（Big Idea），其基本思路：
+        1.忽略掉那些依赖于机器的常量。
+        2.关注运行时间的增长趋势  
+        
+    使用 O 记号法（Big O Notation）表示最坏运行情况的上界
+        线性复杂度 O(n) 表示每个元素都要被处理一次。
+        平方复杂度 O(n2) 表示每个元素都要被处理 n 次。
+        
+        复杂度                |  	标记符号	   |             描述
+        -|-|-
+        常量（Constant）	     |     O(1)        |  操作的数量为常数，与输入的数据的规模无关。n = 1,000,000 -> 1-2 operations 
+        对数（Logarithmic）	 |     O(log2 n)   |  操作的数量与输入数据的规模 n 的比例是 log2 (n)。n = 1,000,000 -> 30 operations
+        线性（Linear）	     |     O(n)        |  操作的数量与输入数据的规模 n 成正比。n = 10,000 -> 5000 operations
+        平方（Quadratic）	     |     O(n2)	   |  操作的数量与输入数据的规模 n 的比例为二次平方。n = 500 -> 250,000 operations
+        立方（Cubic）	         |     O(n3)       |  操作的数量与输入数据的规模 n 的比例为三次方。n = 200 -> 8,000,000 operations
+        指数（Exponential）	 |O(2n),O(kn),O(n!)|  指数级的操作，快速的增长。n = 20 -> 1048576 operations
+         
+       
+    注1：快速的数学回忆，logab = y 其实就是 ay = b。所以，log24 = 2，因为 22 = 4。同样 log28 = 3，因为 23 = 8。我们说，log2n 
+        的增长速度要慢于 n，因为当 n = 8 时，log2n = 3。
+    注2：通常将以 10 为底的对数叫做常用对数。为了简便，N 的常用对数 log10 N 简写做 lg N，例如 log10 5 记做 lg 5。
+    注3：通常将以无理数 e 为底的对数叫做自然对数。为了方便，N 的自然对数 loge N 简写做 ln N，例如 loge 3 记做 ln 3。
+    注4：在算法导论中，采用记号 lg n = log2 n ，也就是以 2 为底的对数。改变一个对数的底只是把对数的值改变了一个常数倍，所以当
+        不在意这些常数因子时，我们将经常采用 "lg n"记号，就像使用 O 记号一样。计算机工作者常常认为对数的底取 2 最自然，因为很多算法和
+        数据结构都涉及到对问题进行二分。 
+
+    计算代码块的渐进运行时间的方法有如下步骤：
+        1.确定决定算法运行时间的组成步骤。
+        2.找到执行该步骤的代码，标记为 1。
+        3.查看标记为 1 的代码的下一行代码。如果下一行代码是一个循环，则将标记 1 修改为 1 倍于循环的次数 1 * n。如果包含多个嵌套的循环，
+            则将继续计算倍数，例如 1 * n * m。
+        4.找到标记到的最大的值，就是运行时间的最大值，即算法复杂度描述的上界。
+    
+    
+    时间复杂度
+    https://juejin.im/post/58d15f1044d90400691834d4     (说的比较明白)
+        时间频度一个算法执行所耗费的时间，从理论上是不能算出来的，必须上机运行测试才能知道。但我们不可能也没有必要对每个算法都上机测试，
+        只需知道哪个算法花费的时间多，哪个算法花费的时间少就可以了。并且一个算法花费的时间与算法中语句的执行次数成正比例，哪个算法中
+        语句执行次数多，它花费时间就多。一个算法中的语句执行次数称为语句频度或时间频度。记为T(n)。
+        时间复杂度前面提到的时间频度T(n)中，n称为问题的规模，当n不断变化时，时间频度T(n)也会不断变化。但有时我们想知道它变化时呈现什么
+        规律，为此我们引入时间复杂度的概念。一般情况下，算法中基本操作重复执行的次数是问题规模n的某个函数，用T(n)表示，若有某个辅助
+        函数f(n)，使得当n趋近于无穷大时，T（n)/f(n)的极限值为不等于零的常数，则称f(n)是T(n)的同数量级函数，记作T(n)=O(f(n))，它称
+        为算法的渐进时间复杂度，简称时间复杂度。
+    
+    大O表示法
+        像前面用O( )来体现算法时间复杂度的记法，我们称之为大O表示法。算法复杂度可以从最理想情况、平均情况和最坏情况三个角度来评估，
+        由于平均情况大多和最坏情况持平，而且评估最坏情况也可以避免后顾之忧，因此一般情况下，我们设计算法时都要直接估算最坏情况的
+        复杂度。大O表示法O(f(n)中的f(n)的值可以为1、n、logn、n²等，因此我们可以将O(1)、O(n)、O(logn)、O(n²)分别可以称为常数阶、
+        线性阶、对数阶和平方阶，那么如何推导出f(n)的值呢？我们接着来看推导大O阶的方法。
+        推导大O阶推导大O阶，我们可以按照如下的规则来进行推导，得到的结果就是大O表示法：
+        1.用常数1来取代运行时间中所有加法常数。
+        2.修改后的运行次数函数中，只保留最高阶项
+        3.如果最高阶项存在且不是1，则去除与这个项相乘的常数。
+    
+    *常用的时间复杂度按照耗费的时间从小到大依次是：
+    O(1)<O(logn)<O(n)<O(nlogn)<O(n²)<O(n³)<O(2ⁿ)<O(n!)
+    
+    
+    
+    八种排序算法
+    https://www.jianshu.com/p/5e171281a387  
+    
+        选择排序
+            选择排序可以说是最简单的一种排序方法：
+            1.找到数组中最小的那个元素
+            2.将最小的这个元素和数组中第一个元素交换位置
+            3.在剩下的元素中找到最小的的元素，与数组第二个元素交换位置
+            时间复杂度O(N^2)
+    
+        冒泡排序：
+            据说是八大排序中的其一，通俗的意思就是讲，在一组数据中，相邻元素依次比较大小，最大的放后面，最小的冒上来
+            时间复杂度O(N^2)
+            
+        直接插入排序
+            1.首先设定插入次数，即循环次数，for(int i=1;i<length;i++)，1个数的那次不用插入。
+            2.设定插入数和得到已经排好序列的最后一个数的位数。insertNum和j=i-1。
+            3.从最后一个数开始向前循环，如果插入数小于当前数，就将当前数向后移动一位。
+            4.将当前数放置到空着的位置，即j+1。
+            时间复杂度O(N^2)
+            
+        希尔排序
+            https://www.cnblogs.com/edwinchen/p/4782179.html    (原理)
+            对于直接插入排序问题，数据量巨大时。
+            
+            1.将数的个数设为n，取奇数k=n/2，将下标差值为k的书分为一组，构成有序序列。
+            2.再取k=k/2 ，将下标差值为k的书分为一组，构成有序序列。
+            3.重复第二步，直到k=1执行简单插入排序。
+        
+    
+    
+    
+    
+    
+        
+        
+
+
