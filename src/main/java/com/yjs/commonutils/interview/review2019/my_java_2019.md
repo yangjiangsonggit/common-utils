@@ -161,6 +161,13 @@
 
 ## 2.类加载
 
+###目录
+    1.三种类加载器
+    2.类加载机制和对象生命周期
+    3.双亲委派,为啥要这样,有违背这个原则的吗(tomcat)
+    4.反射
+###结束
+
      *JVM 类加载机制详解
      https://www.cnblogs.com/cxxjohnson/p/8653360.html
      
@@ -169,19 +176,36 @@
      扩展类加载器(Extension ClassLoader)：负责加载 JAVA_HOME\lib\ext 目录中的，或通过java.ext.dirs系统变量指定路径中的类库。
      应用程序类加载器(Application ClassLoader)：负责加载用户路径（classpath）上的类库。
 
-
-     当一个类加载器收到类加载任务，会先交给其父类加载器去完成，因此最终加载任务都会传递到顶层的启动类加载器，
-     只有当父类加载器无法完成加载任务时，才会尝试执行加载任务。
-     采用双亲委派的一个好处是比如加载位于rt.jar包中的类java.lang.Object，不管是哪个加载器加载这个类，
-     最终都是委托给顶层的启动类加载器进行加载，这样就保证了使用不同的类加载器最终得到的都是同样一个Object对象。
+     *双亲委派模式
+         当一个类加载器收到类加载任务，会先交给其父类加载器去完成，因此最终加载任务都会传递到顶层的启动类加载器，
+         只有当父类加载器无法完成加载任务时，才会尝试执行加载任务。
+         采用双亲委派的一个好处是比如加载位于rt.jar包中的类java.lang.Object，不管是哪个加载器加载这个类，
+         最终都是委托给顶层的启动类加载器进行加载，这样就保证了使用不同的类加载器最终得到的都是同样一个Object对象。
+          
+         双亲委派模型是指：当一个类加载器收到类加载请求时，不会直接加载这个类，而是把这个加载请求委派给自己父加载器去完成。如果父加载器无法加载时，子加载器才会去尝试加载。
+         采用双亲委派模型的原因：避免同一个类被多个类加载器重复加载。
      
      
      
      *JVM类加载机制与对象的生命周期
      https://www.cnblogs.com/cxxjohnson/p/8662370.html
      
-     类的生命周期
+     *类的生命周期
          类的生命周期包括7个部分：加载——验证——准备——解析——初始化——使用——卸载
+         1.加载
+            通过类名字获取类的二进制字节流——将字节流的内容转存到方法区——在内存中生成一个Class对象作为该类方法区数据的访问入
+         2.验证
+            确保class文件的二进制字节流中包含的信息符号虚拟机要求
+         3.准备
+            为类变量（静态变量）在方法区分配内存，并设置零值。注意：这里是类变量，不是实例变量，实例变量是对象分配到堆内存时根据运行时动态生成的。
+         4.解析
+            把常量池中的符号引用解析为直接引用：根据符号引用所作的描述，在内存中找到符合描述的目标并把目标指针指针返回。
+         5.初始化
+            真正开始执行Java程序代码，该步执行<clinit>方法根据代码赋值语句，对 类变量和其他资源  进行初始化赋值。
+             在经历了上面5步“加载”阶段后，才真正地可以使用class对象或者使用实例对象。使用过后，不再需要用到该类的class对象或者实例对象时，
+             就会把类卸载掉（发生在方法区的垃圾回收：无用类的卸载）。
+         6.使用
+         7.卸载
          
      类的初始化触发
          最常见的是前三种：实例化对象、读写静态对象、调用静态方法、反射机制调用类、调用子类触发父类初始化。
@@ -213,40 +237,177 @@
         使用线程上下文加载器，可以让父类加载器请求子类加载器去完成类加载的动作。
         
      
-       
 
 ## 3.jvm
 
-    *Java虚拟机垃圾回收(一) 基础 回收哪些内存/对象 
+###目录
+    1.哪些内存需要回收？即如何判断对象已经死亡?
+        判断对象可以回收算法
+            引用计数算法  (很难解决对象之间相互循环引用的问题)
+            可达性分析算法 (分析过程需要GC停顿（引用关系不能发生变化）)
+        判断对象生存还是死亡
+            第一次标记   (在可达性分析后发现到GC Roots没有任何引用链相连时，被第一次标记；)
+            第二次标记   (GC将对F-Queue队列中的对象进行第二次小规模标记；如果对象在其finalize()方法中重新与引用链上任何一个对象建立关联，第二次标记时会将其移出"即将回收"的集合,否则就回收)
+        安全点     (选取引用不咋变化的区域)
+        安全区域    (指一段代码片段中，引用关系不会发生变化,在这个区域中的任意地方开始GC都是安全的；)
+            
+    2.什么时候回收？即GC发生在什么时候？需要了解GC策略，与垃圾回收器实现有关?
+        常见的垃圾回收算法
+            复制算法    (新生代使用)
+            标记-清除算法 (标记清除后会产生大量不连续的内存碎片；)
+            标记-整理算法 (主要是效率问题：除像标记-清除算法的标记过程外，还多了需要整理的过程，效率更低；)
+            分代收集算法  (这样就可以根据各个年代的特点采用最适当的收集算法；)
+            火车算法    (G1)
+            
+    3.如何回收？即需要了解垃圾回收算法，及算法的实现--垃圾回收器?
+        7种垃圾回收器
+            Serial、ParNew、Parallel Scavenge、Serial Old、Parallel Old、CMS、G1
+        
+        垃圾收集器组合
+             新生代收集器：Serial、ParNew、Parallel Scavenge；
+             老年代收集器：Serial Old、Parallel Old、CMS；
+             整堆收集器：G1；
+        吞吐量与收集器关注点说明
+            停顿时间 
+            吞吐量
+            覆盖区
+        常用组合
+            Parallel Scavenge（新生代）+  Parallel Old（老年代）    吞吐量大
+            ParNew（新生代）      +       CMS（老年代）             暂停时间短
+            G1                                                   面向服务端应用，针对具有大内存、多处理器的机器；最主要的应用是为需要低GC延迟，并具有大堆的应用程序提供解决方案；如：在堆大小约6GB或更大时，可预测的暂停时间可以低于0.5秒；
+                                                                 
+    4.各版本默认垃圾收集器
+        jdk1.7 默认垃圾收集器Parallel Scavenge（新生代）+Parallel Old（老年代）
+        jdk1.8 默认垃圾收集器Parallel Scavenge（新生代）+Parallel Old（老年代）
+        jdk1.9 默认垃圾收集器G1
+        
+        -XX:+PrintCommandLineFlagsjvm参数可查看默认设置收集器类型
+        -XX:+PrintGCDetails亦可通过打印的GC日志的新生代、老年代名称判断
+        
+        bat推荐参数配置   (必看)
+        https://juejin.im/post/5b091ee35188253892389683
+    5.常用命令
+        https://mp.weixin.qq.com/s/QNr8somjodyvU9dRAQG2oA
+        jstat 
+            -gc         垃圾回收堆的行为统计
+            -gcutil     同-gc，不过输出的是已使用空间占总空间的百分比
+            -gccause    垃圾收集统计概述（同-gcutil），附加最近两次垃圾回收事件的原因
+            
+        jmap
+            option参数
+            dump : 生成堆转储快照
+            finalizerinfo : 显示在F-Queue队列等待Finalizer线程执行finalizer方法的对象
+            heap : 显示Java堆详细信息
+            histo : 显示堆中对象的统计信息
+            permstat : to print permanent generation statistics
+            F : 当-dump没有响应时，强制生成dump快照
+        jhat
+        jstack
+            -F : 当正常输出请求不被响应时，强制输出线程堆栈
+            -l : 除堆栈外，显示关于锁的附加信息    (常用)
+            -m : 如果调用到本地方法的话，可以显示C/C++的堆栈
+        
+##结束
+    
+
+     *Java虚拟机垃圾回收(一) 基础 回收哪些内存/对象 
+        程序计数器、虚拟机栈、本地方法栈这3个区域是随线程而生而灭的，内存分配和回收都具备确定性，而Java堆和方法区则不一样，
+        各线程共享，在运行时内存的分配与回收都是动态的，垃圾收集器所关注的是这部分内存。
+    
      引用计数算法 可达性分析算法 finalize()方法 HotSpot实现分析
         https://blog.csdn.net/tjiyu/article/details/53982412
         
         *判断对象可以回收
-            引用计数算法
+            引用计数算法  
+            可达性分析算法 
             
-            可达性分析算法
-                GC Roots对象
-                可达性分析期间需要保证整个执行系统的一致性，对象的引用关系不能发生变化；
-                导致GC进行时必须停顿所有Java执行线程（称为"Stop The World"）；
+                思路
+                    给对象添加一个引用计数器，每当有一个地方引用它，计数器加1；
+                    当引用失效，计数器值减1；
+                    任何时刻计数器值为0，则认为对象是不再被使用的；
+                缺点
+                    很难解决对象之间相互循环引用的问题
                 
+            *可达性分析算法
+                思路
+                    通过一系列"GC Roots"对象作为起始点，开始向下搜索；
+                    搜索所走过和路径称为引用链（Reference Chain）；
+                    *当一个对象到GC Roots没有任何引用链相连时（从GC Roots到这个对象不可达），则证明该对象是不可用的；
+                GC Roots对象
+                    （1）、虚拟机栈（栈帧中本地变量表）中引用的对象；
+                    （2）、方法区中类静态属性引用的对象；
+                    （3）、方法区中常量引用的对象；
+                    （4）、本地方法栈中JNI（Native方法）引用的对象；
+                缺点
+                    实现比较复杂；
+                    需要分析大量数据，消耗大量时间；
+                    *分析过程需要GC停顿（引用关系不能发生变化），即停顿所有Java执行线程（称为"Stop The World"，是垃圾回收重点关注的问题）；
+            
+            引用的种类
+                JDK1.2后，对引用概念进行了扩充
+                （1）、强引用（Strong Reference）
+                    只要强引用还存在，GC永远不会回收被引用的对象；
+                （2）、软引用（Soft Reference）
+                    直到内存空间不够时（抛出OutOfMemoryError之前），才会被垃圾回收；
+                （3）、弱引用（Weak Reference）
+                    只能生存到下一次垃圾回收之前，无论内存是否足够；
+                （4）、虚引用（Phantom Reference）
+            
+            
         *判断对象生存还是死亡
+            要真正宣告一个对象死亡，至少要经历两次标记过程。
+            
             第一次标记
+                 在可达性分析后发现到GC Roots没有任何引用链相连时，被第一次标记；
+                 并且进行一次筛选：此对象是否必要执行finalize()方法；
+                 （A）、没有必要执行
+                       没有必要执行的情况：
+                       （1）、对象没有覆盖finalize()方法；
+                       （2）、finalize()方法已经被JVM调用过；
+                       这两种情况就可以认为对象已死，可以回收；
+                 
+                 （B）、有必要执行
+                       对有必要执行finalize()方法的对象，被放入F-Queue队列中；
+                       稍后在JVM自动建立、低优先级的Finalizer线程（可能多个线程）中触发这个方法；
+                
             第二次标记
+                 GC将对F-Queue队列中的对象进行第二次小规模标记；
+                      finalize()方法是对象逃脱死亡的最后一次机会：
+                      （A）、如果对象在其finalize()方法中重新与引用链上任何一个对象建立关联，第二次标记时会将其移出"即将回收"的集合；
+                      （B）、如果对象没有，也可以认为对象已死，可以回收了；                    
+                      一个对象的finalize()方法只会被系统自动调用一次，经过finalize()方法逃脱死亡的对象，第二次不会再调用；
          
         *finalize()方法
             充当"安全网"
             与对象的本地对等体有关
          
         *安全点
-            运行中，非常多的指令都会导致引用关系变化；
-            如果为这些指令都生成对应的OopMap，需要的空间成本太高；     
-            
-            抢先式中断
-            主动式中断
+            为什么需要安全点
+                运行中，非常多的指令都会导致引用关系变化；
+                如果为这些指令都生成对应的OopMap，需要的空间成本太高；     
+            解决办法
+                只在特定的位置记录OopMap引用关系，这些位置称为安全点（Safepoint）；
+                即程序执行时并非所有地方都能停顿下来开始GC；
+            安全点的选定
+                不能太少，否则GC等待时间太长；也不能太多，否则GC过于频繁，增大运行时负荷；
+                所以，基本上是以程序"是否具有让程序长时间执行的特征"为标准选定；
+                "长时间执行"最明显的特征就是指令序列复用，如：方法调用、循环跳转、循环的末尾、异常跳转等；
+                只有具有这些功能的指令才会产生Safepoint；
+            如何在安全点上停顿
+                抢先式中断   (不推荐)
+                主动式中断   
+                    （1）、在GC发生时，不直接操作线程中断，而是仅简单设置一个标志；
+                    （2）、让各线程执行时主动去轮询这个标志，发现中断标志为真时就自己中断挂起；
+                    
             
         *安全区域(解决安全点问题->线程sleep或者系统阻塞)
+            为什么需要安全区域
+                对于上面的Safepoint还有一个问题：
+                程序不执行时没有CPU时间（Sleep或Blocked状态），无法运行到Safepoint上再中断挂起； 
+            什么是安全区域（Safe Region）
+                指一段代码片段中，引用关系不会发生变化；
+                在这个区域中的任意地方开始GC都是安全的；  
             
-            指一段代码片段中，引用关系不会发生变化
             
             
         
@@ -254,23 +415,259 @@
       标记-清除算法 复制算法 标记-整理算法 分代收集算法 火车算法
       https://blog.csdn.net/tjiyu/article/details/53983064
       
-      
-        *标记-清除算法
-            针对老年代的CMS收集器；
-        *复制算法算法
-            Serial收集器
-        *标记-整理算法
-        *分代收集算法
-        *火车算法
-      
-      
-      
-      
+        常见的垃圾回收算法
+            *标记-清除算法
+                算法思路
+                    "标记-清除"算法，分为两个阶段：
+                    （A）、标记
+                          首先标记出所有需要回收的对象；
+                          （1）、第一次标记
+                          （2）、第二次标记
+                          对第一次被标记，且第二次还被标记（如果需要，但没有移出"即将回收"的集合），就可以认为对象已死，可以进行回收。
+                    （B）、清除
+                          两次标记后，还在"即将回收"集合的对象将被统一回收；
+                      
+                缺点
+                    （A）、效率问题
+                           标记和清除两个过程的效率都不高；
+                    （B）、空间问题
+                           标记清除后会产生大量不连续的内存碎片；
+                           这会导致分配大内存对象时，无法找到足够的连续内存；
+                           从而需要提前触发另一次垃圾收集动作；
+                应用场景
+                      针对老年代的CMS收集器； 
+                          
+                          
+            *复制算法
+                算法思路
+                    （A）、把内存划分为大小相等的两块，每次只使用其中一块；
+                    （B）、当一块内存用完了，就将还存活的对象复制到另一块上（而后使用这一块）；
+                    （C）、再把已使用过的那块内存空间一次清理掉，而后重复步骤2；    
+                优点
+                    这使得每次都是只对整个半区进行内存回收；
+                    内存分配时也不用考虑内存碎片等问题（可使用"指针碰撞"的方式分配内存）；
+                    实现简单，运行高效；
+                缺点
+                    （A）、空间浪费
+                          可用内存缩减为原来的一半，太过浪费（解决：可以改良，不按1:1比例划分）；
+                    （B）、效率随对象存活率升高而变低
+                          当对象存活率较高时，需要进行较多复制操作，效率将会变低（解决：后面的标记-整理算法）；
+                应用场景
+                      现在商业JVM都采用这种算法（通过改良缺点1）来回收新生代；
+                      如Serial收集器、ParNew收集器、Parallel Scavenge收集器、、G1（从局部看）；
+                HotSpot虚拟机的改良算法
+                    （A）、弱代理论
+                        （1）、大多数分配了内存的对象并不会存活太长时间，在处于年轻代时就会死掉；
+                        （2）、很少有对象会从老年代变成年轻代；
+                         其中IBM研究表明：新生代中98%的对象都是"朝生夕死"； 所以并不需要按1:1比例来划分内存（解决了缺点1）；
+                    （B）、HotSpot虚拟机新生代内存布局及算法
+                           （1）、将新生代内存分为一块较大的Eden空间和两块较小的Survivor空间；
+                           （2）、每次使用Eden和其中一块Survivor；
+                           （3）、当回收时，将Eden和使用中的Survivor中还存活的对象一次性复制到另外一块Survivor；
+                           （4）、而后清理掉Eden和使用过的Survivor空间；
+                           （5）、后面就使用Eden和复制到的那一块Survivor空间，重复步骤3；
+                              默认Eden：Survivor=8:1，即每次可以使用90%的空间，只有一块Survivor的空间被浪费；
+                    （C）、分配担保
+                           如果另一块Survivor空间没有足够空间存放上一次新生代收集下来的存活对象时，
+                           这些对象将直接通过分配担保机制（Handle Promotion）进入老年代；
+                        
+            *标记-整理算法
+                "标记-整理"（Mark-Compact）算法是根据老年代的特点提出的。
+                算法思路
+                    （1）、标记
+                          标记过程与"标记-清除"算法一样；
+                    （2）、整理
+                           但后续不是直接对可回收对象进行清理，而是让所有存活的对象都向一端移动；
+                           然后直接清理掉端边界以外的内存；
+                优点
+                    （A）、不会像复制算法，效率随对象存活率升高而变低
+                           老年代特点：
+                           对象存活率高，没有额外的空间可以分配担保；
+                           所以老年代一般不能直接选用复制算法算法；
+                           而选用标记-整理算法；
+                    （B）、不会像标记-清除算法，产生内存碎片
+                           因为清除前，进行了整理，存活对象都集中到空间一侧；
+                
+                缺点
+                       主要是效率问题：除像标记-清除算法的标记过程外，还多了需要整理的过程，效率更低；
+                应用场景
+                       很多垃圾收集器采用这种算法来回收老年代；
+                      如Serial Old收集器、G1（从整体看）；
+
+
+            *分代收集算法
+                算法思路
+                       基于前面说的弱代理论，其实并没有什么新的思想；
+                       只是根据对象存活周期的不同将内存划分为几块；
+                       这样就可以根据各个年代的特点采用最适当的收集算法；
+                       一般把Java堆分为新生代和老年代；
+                    （A）、新生代
+                           每次垃圾收集都有大批对象死去，只有少量存活；
+                           所以可采用复制算法；
+                    
+                    （B）、老年代
+                          对象存活率高，没有额外的空间可以分配担保；
+                          使用"标记-清理"或"标记-整理"算法；
+                          结合上面对新生代的内存划分介绍和上篇文章对Java堆的介绍，可以得出HotSpot虚拟机一般的年代内存划分，如下图：
+                    默认值:
+                        新生代 : 老年代   = 1 : 2
+                        eden : surivor = 8 : 1
+                        
+                优点      
+                       可以根据各个年代的特点采用最适当的收集算法；
+                        
+            *火车算法
+                火车算法也称列车算法，是一种更彻底的分区域处理收集算法，是对分代收集算法的一个有力补充。
+                
+                算法思路
+                    在火车算法中，内存被分为块，多个块组成一个集合。为了形象化，一节车厢代表一个块，一列火车代表一个集合
+                    （1）、选择标号最小的火车；
+                    （2）、如果火车的记忆集合是空的, 释放整列火车并终止, 否则进行第三步操作；
+                    （3）、选择火车中标号最小的车厢；
+                    （4）、对于车厢记忆集合的每个元素：
+                    （5）、释放车厢并且终止；
+                优点
+                      可以在成熟对象空间提供限定时间的渐近收集；
+                      而不需要每次都进行一个大区域的垃圾回收过程；
+                      即可以控制垃圾回收的时间，在指定时间内进行一些小区域的回收；
+                
+                缺点
+                      实现较为复杂，如采用类似的算法的G1收集器在JDK7才实现；
+                      一些场景下可能性价比不高；
+                
+                应用场景
+                      JDK7后HotSpot虚拟机G1收集器采用类似的算法，能建立可预测的停顿时间模型；
+                
+                
      *Java虚拟机垃圾回收(三) 7种垃圾收集器 
       主要特点 应用场景 设置参数 基本运行原理
       https://blog.csdn.net/tjiyu/article/details/53983650
       
-      
+         垃圾收集器组合
+            （A）、7种不同分代的收集器
+                Serial、ParNew、Parallel Scavenge、Serial Old、Parallel Old、CMS、G1；
+            （B）、而它们所处区域，则表明其是属于新生代收集器还是老年代收集器：
+                新生代收集器：Serial、ParNew、Parallel Scavenge；
+                老年代收集器：Serial Old、Parallel Old、CMS；
+                整堆收集器：G1；
+            （C）、两个收集器间有连线，表明它们可以搭配使用：
+                   Serial/Serial Old、Serial/CMS、ParNew/Serial Old、ParNew/CMS、Parallel Scavenge/Serial Old、Parallel Scavenge/Parallel Old、G1；
+            （D）、其中Serial Old作为CMS出现"Concurrent Mode Failure"失败的后备预案（后面介绍）；
+            
+         并发垃圾收集和并行垃圾收集的区别
+            （A）、并行（Parallel）
+                   指多条垃圾收集线程并行工作，但此时用户线程仍然处于等待状态；
+                   如ParNew、Parallel Scavenge、Parallel Old；
+            
+            （B）、并发（Concurrent）
+                   指用户线程与垃圾收集线程同时执行（但不一定是并行的，可能会交替执行）；
+                  用户程序在继续运行，而垃圾收集程序线程运行于另一个CPU上；    
+                   如CMS、G1（也有并行）；
+         
+         Minor GC和Full GC的区别
+             （A）、Minor GC
+                    又称新生代GC，指发生在新生代的垃圾收集动作；
+                    因为Java对象大多是朝生夕灭，所以Minor GC非常频繁，一般回收速度也比较快；
+             
+             （B）、Full GC
+                    又称Major GC或老年代GC，指发生在老年代的GC；
+                    出现Full GC经常会伴随至少一次的Minor GC（不是绝对，Parallel Sacvenge收集器就可以选择设置Major GC策略）；
+                   Major GC速度一般比Minor GC慢10倍以上；
+
+         各种收集器
+            Serial收集器
+                特点
+                      针对新生代；
+                      采用复制算法；
+                      单线程收集；
+                       进行垃圾收集时，必须暂停所有工作线程，直到完成；            
+                       即会"Stop The World"；
+
+            ParNew收集器
+                ParNew垃圾收集器是Serial收集器的多线程版本。
+                特点
+                      除了多线程外，其余的行为、特点和Serial收集器一样；
+                      如Serial收集器可用控制参数、收集算法、Stop The World、内存分配规则、回收策略等；
+                      两个收集器共用了不少代码；
+                      ParNew/Serial Old组合收集器运行示意图如下：
+                
+                应用场景
+                      *在Server模式下，ParNew收集器是一个非常重要的收集器，因为除Serial外，目前只有它能与CMS收集器配合工作；
+                      但在单个CPU环境中，不会比Serail收集器有更好的效果，因为存在线程交互开销。
+            
+                设置参数
+                      "-XX:+UseConcMarkSweepGC"：指定使用CMS后，会默认使用ParNew作为新生代收集器；
+                      "-XX:+UseParNewGC"：强制指定使用ParNew；    
+                      "-XX:ParallelGCThreads"：指定垃圾收集的线程数量，ParNew默认开启的收集线程与CPU的数量相同；
+
+                为什么只有ParNew能与CMS收集器配合
+                      CMS是HotSpot在JDK1.5推出的第一款真正意义上的并发（Concurrent）收集器，第一次实现了让垃圾收集线程与用户线程（基本上）同时工作；
+                      CMS作为老年代收集器，但却无法与JDK1.4已经存在的新生代收集器Parallel Scavenge配合工作；
+                      因为Parallel Scavenge（以及G1）都没有使用传统的GC收集器代码框架，而另外独立实现；而其余几种收集器则共用了部分的框架代码；
+                      关于CMS收集器后面会详细介绍。
+
+            Parallel Scavenge收集器
+                 Parallel Scavenge垃圾收集器因为与吞吐量关系密切，也称为吞吐量收集器（Throughput Collector）。
+                
+                特点
+                （A）、有一些特点与ParNew收集器相似
+                      新生代收集器；
+                      采用复制算法；
+                      多线程收集；
+                
+                （B）、主要特点是：它的关注点与其他收集器不同
+                      CMS等收集器的关注点是尽可能地缩短垃圾收集时用户线程的停顿时间；
+                      而Parallel Scavenge收集器的目标则是达一个可控制的吞吐量（Throughput）；
+                      关于吞吐量与收集器关注点说明详见本节后面；
+                应用场景
+                      高吞吐量为目标，即减少垃圾收集时间，让用户代码获得更长的运行时间；
+                      当应用程序运行在具有多个CPU上，对暂停时间没有特别高的要求时，即程序主要在后台进行计算，而不需要与用户进行太多交互；
+                      例如，那些执行批量处理、订单处理、工资支付、科学计算的应用程序；
+                
+                设置参数
+                      Parallel Scavenge收集器提供两个参数用于精确控制吞吐量：
+                
+                    （A）、"-XX:MaxGCPauseMillis"
+                          控制最大垃圾收集停顿时间，大于0的毫秒数；
+                          MaxGCPauseMillis设置得稍小，停顿时间可能会缩短，但也可能会使得吞吐量下降；
+                          因为可能导致垃圾收集发生得更频繁；
+                    
+                    （B）、"-XX:GCTimeRatio"
+                          设置垃圾收集时间占总时间的比率，0<n<100的整数；
+                          GCTimeRatio相当于设置吞吐量大小；
+                          垃圾收集执行时间占应用程序执行时间的比例的计算方法是：
+                          1 / (1 + n)
+                          例如，选项-XX:GCTimeRatio=19，设置了垃圾收集时间占总时间的5%--1/(1+19)；
+                          默认值是1%--1/(1+99)，即n=99；
+                    
+                        垃圾收集所花费的时间是年轻一代和老年代收集的总时间；
+                        如果没有满足吞吐量目标，则增加代的内存大小以尽量增加用户程序运行的时间；
+                          此外，还有一个值得关注的参数：
+                     
+                     （C）、"-XX:+UseAdptiveSizePolicy"
+                     
+                           开启这个参数后，就不用手工指定一些细节参数，如：
+                           新生代的大小（-Xmn）、Eden与Survivor区的比例（-XX:SurvivorRation）、晋升老年代的对象年龄（-XX:PretenureSizeThreshold）等；
+                           JVM会根据当前系统运行情况收集性能监控信息，动态调整这些参数，以提供最合适的停顿时间或最大的吞吐量，这种调节方式称为GC自适应的调节策略（GC Ergonomiscs）；    
+                           这是一种值得推荐的方式：
+                     
+                           (1)、只需设置好内存数据大小（如"-Xmx"设置最大堆）；
+                           (2)、然后使用"-XX:MaxGCPauseMillis"或"-XX:GCTimeRatio"给JVM设置一个优化目标；
+                           (3)、那些具体细节参数的调节就由JVM自适应完成；        
+                     
+                           这也是Parallel Scavenge收集器与ParNew收集器一个重要区别；    
+                     
+                           更多目标调优和GC自适应的调节策略说明请参考：    
+
+                吞吐量与收集器关注点说明
+                    （A）、吞吐量（Throughput）
+                         即吞吐量=运行用户代码时间/（运行用户代码时间+垃圾收集时间）；    
+                         高吞吐量即减少垃圾收集时间，让用户代码获得更长的运行时间；
+                    （B）、垃圾收集器期望的目标（关注点）
+                         停顿时间越短就适合需要与用户交互的程序；
+                    （3）、覆盖区（Footprint）
+                         在达到前面两个目标的情况下，尽量减少堆的内存空间；
+
          *吞吐量与收集器关注点说明
          
             吞吐量
@@ -282,8 +679,138 @@
             吞吐量
             覆盖区
 
+         *Parallel Old收集器
+            Parallel Old垃圾收集器是Parallel Scavenge收集器的老年代版本；
+            特点
+                  针对老年代；
+                  采用"标记-整理"算法；
+                  多线程收集；
       
-      
+            应用场景
+                  JDK1.6及之后用来代替老年代的Serial Old收集器；
+                  特别是在Server模式，多CPU的情况下；
+                  这样在注重吞吐量以及CPU资源敏感的场景，就有了Parallel Scavenge加Parallel Old收集器的"给力"应用组合；
+            
+            设置参数
+                  "-XX:+UseParallelOldGC"：指定使用Parallel Old收集器；
+            
+         *CMS收集器
+            并发标记清理（Concurrent Mark Sweep，CMS）收集器也称为并发低停顿收集器（Concurrent Low Pause Collector）
+            或低延迟（low-latency）垃圾收集器；
+            
+            特点
+                  针对老年代；
+                  基于"标记-清除"算法(不进行压缩操作，产生内存碎片)；            
+                  以获取最短回收停顿时间为目标；
+                  并发收集、低停顿；
+                  需要更多的内存（看后面的缺点）；
+            
+            应用场景
+                  与用户交互较多的场景；        
+                  希望系统停顿时间最短，注重服务的响应速度；
+                  以给用户带来较好的体验；
+                  如常见WEB、B/S系统的服务器上的应用；
+            
+            设置参数
+                  "-XX:+UseConcMarkSweepGC"：指定使用CMS收集器；
+            
+            CMS收集器运作过程
+                  比前面几种收集器更复杂，可以分为4个步骤:
+                （A）、初始标记（CMS initial mark）
+                      仅标记一下GC Roots能直接关联到的对象；
+                      速度很快；
+                      但需要"Stop The World"；
+                （B）、并发标记（CMS concurrent mark）
+                      进行GC Roots Tracing的过程；
+                      刚才产生的集合中标记出存活对象；
+                      应用程序也在运行；
+                      并不能保证可以标记出所有的存活对象；
+                （C）、重新标记（CMS remark）
+                      为了修正并发标记期间因用户程序继续运作而导致标记变动的那一部分对象的标记记录；
+                      需要"Stop The World"，且停顿时间比初始标记稍长，但远比并发标记短；
+                      采用多线程并行执行来提升效率；
+                （D）、并发清除（CMS concurrent sweep）
+                
+                      回收所有的垃圾对象；
+
+            CMS收集器3个明显的缺点
+                （A）、对CPU资源非常敏感
+                     并发收集虽然不会暂停用户线程，但因为占用一部分CPU资源，还是会导致应用程序变慢，总吞吐量降低。
+                     
+                （B）、无法处理浮动垃圾,可能出现"Concurrent Mode Failure"失败
+                    （1）、浮动垃圾（Floating Garbage）
+                          在并发清除时，用户线程新产生的垃圾，称为浮动垃圾；
+                          这使得并发清除时需要预留一定的内存空间，不能像其他收集器在老年代几乎填满再进行收集；
+                          也要可以认为CMS所需要的空间比其他垃圾收集器大；
+                          "-XX:CMSInitiatingOccupancyFraction"：设置CMS预留内存空间；
+                          JDK1.5默认值为68%；
+                          JDK1.6变为大约92%；  
+                                 
+                    （2）、"Concurrent Mode Failure"失败
+                          如果CMS预留内存空间无法满足程序需要，就会出现一次"Concurrent Mode Failure"失败；
+                          这时JVM启用后备预案：临时启用Serail Old收集器，而导致另一次Full GC的产生；
+                          这样的代价是很大的，所以CMSInitiatingOccupancyFraction不能设置得太大。
+                   
+                （C）、产生大量内存碎片
+                       由于CMS基于"标记-清除"算法，清除后不进行压缩操作；
+                       前面《Java虚拟机垃圾回收(二) 垃圾回收算法》"标记-清除"算法介绍时曾说过：
+                       产生大量不连续的内存碎片会导致分配大内存对象时，无法找到足够的连续内存，从而需要提前触发另一次Full GC动作。
+                       解决方法：                
+                         （1）、"-XX:+UseCMSCompactAtFullCollection"
+                               使得CMS出现上面这种情况时不进行Full GC，而开启内存碎片的合并整理过程；
+                               但合并整理过程无法并发，停顿时间会变长；
+                               默认开启（但不会进行，结合下面的CMSFullGCsBeforeCompaction）；
+                         
+                         （2）、"-XX:+CMSFullGCsBeforeCompaction"
+                               设置执行多少次不压缩的Full GC后，来一次压缩整理；
+                               为减少合并整理过程的停顿时间；
+                               默认为0，也就是说每次都执行Full GC，不会进行压缩整理；
+
+            *G1收集器
+                特点
+                    （A）、并行与并发
+                    （B）、分代收集，收集范围包括新生代和老年代    
+                          能独立管理整个GC堆（新生代和老年代），而不需要与其他收集器搭配；
+                          能够采用不同方式处理不同时期的对象；
+                          虽然保留分代概念，但Java堆的内存布局有很大差别；
+                          将整个堆划分为多个大小相等的独立区域（Region）；
+                          新生代和老年代不再是物理隔离，它们都是一部分Region（不需要连续）的集合；
+                          更多G1内存布局信息请参考：
+                   （C）、结合多种垃圾收集算法，空间整合，不产生碎片 
+                          从整体看，是基于标记-整理算法；
+                          从局部（两个Region间）看，是基于复制算法；
+                          这是一种类似火车算法的实现；
+                          都不会产生内存碎片，有利于长时间运行；
+                          
+                   （D）、可预测的停顿：低停顿的同时实现高吞吐量
+                        G1除了追求低停顿处，还能建立可预测的停顿时间模型；
+                        可以明确指定M毫秒时间片内，垃圾收集消耗的时间不超过N毫秒；
+                        
+                应用场景
+                      面向服务端应用，针对具有大内存、多处理器的机器；
+                      最主要的应用是为需要低GC延迟，并具有大堆的应用程序提供解决方案；
+                      如：在堆大小约6GB或更大时，可预测的暂停时间可以低于0.5秒；
+                      
+                      用来替换掉JDK1.5中的CMS收集器；
+                            在下面的情况时，使用G1可能比CMS好：
+                            （1）、超过50％的Java堆被活动数据占用；
+                            （2）、对象分配频率或年代提升频率变化很大；
+                            （3）、GC停顿时间过长（长于0.5至1秒）。
+                            
+                设置参数
+                      "-XX:+UseG1GC"：指定使用G1收集器；
+                      "-XX:InitiatingHeapOccupancyPercent"：当整个Java堆的占用率达到参数值时，开始并发标记阶段；默认为45；
+                      "-XX:MaxGCPauseMillis"：为G1设置暂停时间目标，默认值为200毫秒；
+                      "-XX:G1HeapRegionSize"：设置每个Region大小，范围1MB到32MB；目标是在最小Java堆时可以拥有约2048个Region；
+                
+                      更多关于G1参数设置请参考：
+
+                G1收集器运作过程
+                    （A）、初始标记（Initial Marking）
+                    （B）、并发标记（Concurrent Marking）
+                    （C）、最终标记（Final Marking）
+                    （D）、筛选回收（Live Data Counting and Evacuation）
+                    
       
      *Java虚拟机垃圾回收(四) 总结：
       内存分配与回收策略 方法区垃圾回收 以及 JVM垃圾回收的调优方法
@@ -294,7 +821,28 @@
             大对象直接进入老年代
             长期存活的对象将进入老年代(默认15)
             动态对象年龄判定
+         回收方法区
             
+         *JVM垃圾回收的调优方法
+            明确期望的目标（关注点）
+                吞吐量
+                停顿时间
+                覆盖区
+                总结就是：低停顿、高吞吐量、少用内存资源；
+                        一般这些目标都相互影响的，增大堆内存获得高吞吐量但会增长停顿时间，反之亦然，有时需折中处理。
+                
+            JVM自适应调整（Ergonomics）
+                
+            *实践调优：选择垃圾收集器，并进行相关设置
+                
+                  例如，使用Parallel Scavenge/Parallel Old组合，这是一种值得推荐的方式：
+                       1、只需设置好内存数据大小（如"-Xmx"设置最大堆）；
+                       2、然后使用"-XX:MaxGCPauseMillis"或"-XX:GCTimeRatio"给JVM设置一个优化目标；
+                       3、那些具体细节参数的调节就由JVM自适应完成；   
+
+
+            *bat 推荐配置
+            https://juejin.im/post/5b091ee35188253892389683
             
             
        
@@ -322,9 +870,85 @@
 
 ## 6.多线程
 
+###目录
+    0.多线程特点
+        1.可见性
+        2.原子性
+        3.可见性
+    1.线程的状态
+        new -> runable -> running -> Blocked -> Dead
+    2.如何停止一个线程
+        interrupted + return
+    3.如何获取线程中的异常
+         setUncaughtExceptionHandler
+    4.线程组
+        但如果在不同的线程组中，那么就不能“跨线程组”修改数据，可以从一定程度上保证数据安全。
+    5.ThreadLocal
+         每个Thread的对象都有一个ThreadLocalMap，当创建一个ThreadLocal的时候，就会将该ThreadLocal对象添加到该Map中，
+         其中键就是ThreadLocal，值可以是任意类型
+    6.Atomic原子类
+        ABA问题,用AtomicStampedReference解决,加版本号,CAS Unsage.compareAndSet
+    7.volatile
+        每次针对该变量的操作都激发一次load and save,不保证原子行
+    8.AQS框架 (AbstractQueuedSynchronizer)
+        CLH(Craig,Landin,and Hagersten)队列是一个虚拟的双向队列（虚拟的双向队列即不存在队列实例，仅存在结点之间的关联关系）。
+         AQS是将每条请求共享资源的线程封装成一个CLH锁队列的一个结点（Node）来实现锁的分配。
+         用CAS操作来管理这个同步状态
+    9.lock
+        ReentrantReadWriteLock,Reentrant,多condition,sign(),await()
+        与synchronized的区别:
+            lock更灵活，可以自由定义多把锁的枷锁解锁顺序（synchronized要按照先加的后解顺序）
+            提供多种加锁方案，lock 阻塞式, trylock 无阻塞式, lockInterruptily 可打断式， 还有trylock的带超时时间版本。
+    10.synchronized
+        wait(),notify()
+        1> 某个对象实例内，synchronized aMethod(){}关键字可以防止多个线程访问对象的synchronized方法
+        （如果一个对象有多个synchronized方法，只要一个线程访问了其中的一个synchronized方法，其它线程不能
+        同时访问这个对象中任何一个synchronized方法）。这时，不同的对象实例的synchronized方法是不相干扰的。
+        也就是说，其它线程照样可以同时访问相同类的另一个对象实例中的synchronized方法.
+        
+        2> 是某个类的范围，synchronized static aStaticMethod{}防止多个线程同时访问这个类中的synchronized
+         static 方法。它可以对类的所有对象实例起作用。
+    11.CountDownLatch,CyclicBarrier,Semaphore(信号量)
+        一个信号量有且仅有3种操作，且它们全部是原子的：初始化、增加和减少 
+        增加可以为一个进程解除阻塞； 
+        减少可以让一个进程进入阻塞。
+        acquireUninterruptibly(int permits){} 
+        每一个release()添加一个许可，从而可能释放一个正在阻塞的获取者。
+    12.Volatile和Synchronized四个不同点： 
+        1 粒度不同，前者针对变量 ，后者锁对象和类 
+        2 syn阻塞，volatile线程不阻塞 
+        3 syn保证三大特性，volatile不保证原子性 
+        4 syn编译器优化，volatile不优化 
+    13.happens-before
+        如果两个操作之间具有happens-before 关系，那么前一个操作的结果就会对后面一个操作可见。 
+            1.程序顺序规则：一个线程中的每个操作，happens- before 于该线程中的任意后续操作。 
+            2.监视器锁规则：对一个监视器锁的解锁，happens- before 于随后对这个监视器锁的加锁。 
+            3.volatile变量规则：对一个volatile域的写，happens- before于任意后续对这个volatile域的读。 
+            4.传递性：如果A happens- before B，且B happens- before C，那么A happens- before C。 
+            5.线程启动规则：Thread对象的start()方法happens- before于此线程的每一个动作。
+    14.java线程阻塞的代价
+        java的线程是映射到操作系统原生线程之上的，如果要阻塞或唤醒一个线程就需要操作系统介入，需要在户态与核心态之间切换，这种切换
+        会消耗大量的系统资源，因为用户态与内核态都有各自专用的内存空间，专用的寄存器等，用户态切换至内核态需要传递给许多变量、参数
+        给内核，内核也需要保护好用户态在切换时的一些寄存器值、变量等，以便内核态调用结束后切换回用户态继续工作。
+    15.自旋锁,偏向锁,轻量锁
+        JVM从1.5开始，引入了轻量锁与偏向锁，默认启用了自旋锁，他们都属于乐观锁。
+        
+
+###结束
+
      https://github.com/Snailclimb/JavaGuide/blob/master/Java%E7%9B%B8%E5%85%B3/Multithread/AQS.md
      https://blog.csdn.net/sinat_35512245/article/details/59056120  (常用题)
      
+     如何停止一个线程
+        interrupted + return
+        
+     守护线程
+        用户线程：运行在前台，执行具体的任务，如程序的主线程、连接网络的子线程等都是用户线程
+        守护线程：运行在后台，为其他前台线程服务.也可以说守护线程是JVM中非守护线程的 “佣人”。
+        特点：一旦所有用户线程都结束运行，守护线程会随JVM一起结束工作
+        应用：数据库连接池中的检测线程，JVM虚拟机启动后的检测线程
+        最常见的守护线程：垃圾回收线程
+        
      对于CountDownLatch来说，重点是“一个线程（多个线程）等待”，而其他的N个线程在完成“某件事情”之后，可以终止，
      也可以等待。而对于CyclicBarrier，重点是多个线程，在任意一个线程没有完成，所有的线程都必须等待。
      CountDownLatch是计数器，线程完成一个记录一个，只不过计数不是递增而是递减，而CyclicBarrier更像是一个阀门，需要所有线程都到达，
@@ -339,10 +963,14 @@
          AQS是将每条请求共享资源的线程封装成一个CLH锁队列的一个结点（Node）来实现锁的分配。
      
         什么是AQS
-        AQS是AbustactQueuedSynchronizer的简称，它是一个Java提高的底层同步工具类，用一个int类型的变量表示同步状态，并提供了一系列的CAS操作来管理这个同步状态。AQS的主要作用是为Java中的并发同步组件提供统一的底层支持，例如ReentrantLock，CountdowLatch就是基于AQS实现的，用法是通过继承AQS实现其模版方法，然后将子类作为同步组件的内部类。
+            AQS是AbustactQueuedSynchronizer的简称，它是一个Java提高的底层同步工具类，用一个int类型的变量表示同步状态，并提供了一系列的
+            CAS操作来管理这个同步状态。AQS的主要作用是为Java中的并发同步组件提供统一的底层支持，例如ReentrantLock，CountdowLatch
+            就是基于AQS实现的，用法是通过继承AQS实现其模版方法，然后将子类作为同步组件的内部类。
         
         同步队列
-        同步队列是AQS很重要的组成部分，它是一个双端队列，遵循FIFO原则，主要作用是用来存放在锁上阻塞的线程，当一个线程尝试获取锁时，如果已经被占用，那么当前线程就会被构造成一个Node节点假如到同步队列的尾部，队列的头节点是成功获取锁的节点，当头节点线程是否锁时，会唤醒后面的节点并释放当前头节点的引用。 
+            同步队列是AQS很重要的组成部分，它是一个双端队列，遵循FIFO原则，主要作用是用来存放在锁上阻塞的线程，当一个线程尝试获取锁时，
+            如果已经被占用，那么当前线程就会被构造成一个Node节点假如到同步队列的尾部，队列的头节点是成功获取锁的节点，当头节点线程是否锁时，
+            会唤醒后面的节点并释放当前头节点的引用。 
         
         独占锁和共享锁在实现上的区别
             独占锁的同步状态值为1，即同一时刻只能有一个线程成功获取同步状态
@@ -357,14 +985,13 @@
             非公平锁是指当锁状态为可用时，不管在当前锁上是否有其他线程在等待，新近线程都有机会抢占锁。
             上述代码即为非公平锁和核心实现，可以看到只要同步状态为0，任何调用lock的线程都有可能获取到锁，而不是按照锁请求的FIFO原则来进行的。
         公平锁
-            从上面的代码中可以看出，公平锁与非公平锁的区别仅在于是否判断当前节点是否存在前驱节点!hasQueuedPredecessors() &&，由AQS可知，如果当前线程获取锁失败就会被加入到AQS同步队列中，那么，如果同步队列中的节点存在前驱节点，也就表明存在线程比当前节点线程更早的获取锁，故只有等待前面的线程释放锁后才能获取锁。
-
-        
+            从上面的代码中可以看出，公平锁与非公平锁的区别仅在于是否判断当前节点是否存在前驱节点!hasQueuedPredecessors() &&，由AQS可知，
+            如果当前线程获取锁失败就会被加入到AQS同步队列中，那么，如果同步队列中的节点存在前驱节点，也就表明存在线程比当前节点线程更早
+            的获取锁，故只有等待前面的线程释放锁后才能获取锁。
         
      
      *ReentrantLock 实现原理
      https://crossoverjie.top/%2F2018%2F01%2F25%2FReentrantLock%2F
-
 
      https://www.cnblogs.com/wxd0108/p/5479442.html
      目的，那就是更好的利用cpu的资源
@@ -391,101 +1018,112 @@
             notify()
             
      *volatile
-     多线程的内存模型：main memory（主存）、working memory（线程栈），在处理数据时，线程会把值从主存load到本地栈，
-     完成操作后再save回去(volatile关键词的作用：每次针对该变量的操作都激发一次load and save)。
-     
-     针对多线程使用的变量如果不是volatile或者final修饰的，很有可能产生不可预知的结果（另一个线程修改了这个值，
-     但是之后在某线程看到的是修改之前的值）。其实道理上讲同一实例的同一属性本身只有一个副本。但是多线程是会缓存值的，
-     本质上，volatile就是不去缓存，直接取值。在线程安全的情况下加volatile会牺牲性能。
-     
+         多线程的内存模型：main memory（主存）、working memory（线程栈），在处理数据时，线程会把值从主存load到本地栈，
+         完成操作后再save回去(volatile关键词的作用：每次针对该变量的操作都激发一次load and save)。
+         
+         针对多线程使用的变量如果不是volatile或者final修饰的，很有可能产生不可预知的结果（另一个线程修改了这个值，
+         但是之后在某线程看到的是修改之前的值）。其实道理上讲同一实例的同一属性本身只有一个副本。但是多线程是会缓存值的，
+         本质上，volatile就是不去缓存，直接取值。在线程安全的情况下加volatile会牺牲性能。
      
      
      *如何获取线程中的异常
      setUncaughtExceptionHandler
      
-     
-     *线程组：线程组存在的意义，首要原因是安全。java默认创建的线程都是属于系统线程组，
-     而同一个线程组的线程是可以相互修改对方的数据的。但如果在不同的线程组中，那么就不能“跨线程组”修改数据，
-     可以从一定程度上保证数据安全。
-
-
+     *线程组：
+         线程组存在的意义，首要原因是安全。java默认创建的线程都是属于系统线程组，
+         而同一个线程组的线程是可以相互修改对方的数据的。但如果在不同的线程组中，那么就不能“跨线程组”修改数据，
+         可以从一定程度上保证数据安全。
 
      *Runnable
      *Callable
-      future模式：并发模式的一种，可以有两种形式，即无阻塞和阻塞，分别是isDone和get。其中Future对象用来存放该线程的返回值以及状态
-      
-      ExecutorService e = Executors.newFixedThreadPool(3);
-       //submit方法有多重参数版本，及支持callable也能够支持runnable接口类型.
-      Future future = e.submit(new myCallable());
-      future.isDone() //return true,false 无阻塞
-      future.get() // return 返回值，阻塞直到该线程运行结束
+          future模式：并发模式的一种，可以有两种形式，即无阻塞和阻塞，分别是isDone和get。其中Future对象用来存放该线程的返回值以及状态
+          
+          ExecutorService e = Executors.newFixedThreadPool(3);
+           //submit方法有多重参数版本，及支持callable也能够支持runnable接口类型.
+          Future future = e.submit(new myCallable());
+          future.isDone() //return true,false 无阻塞
+          future.get() // return 返回值，阻塞直到该线程运行结束
            
-         
-           
+     submit和execute区别
+        1.对返回值的处理不同
+            execute方法不关心返回值。
+            submit方法有返回值，Future.
+        2.对异常的处理不同
+            excute方法会抛出异常。
+            sumbit方法不会抛出异常。除非你调用Future.get()
+               
      *ThreadLocal类
-     用处：保存线程的独立变量。对一个线程类（继承自Thread)
-     当使用ThreadLocal维护变量时，ThreadLocal为每个使用该变量的线程提供独立的变量副本，所以每一个线程都可以独立地改变自己的副本，
-     而不会影响其它线程所对应的副本。常用于用户登录控制，如记录session信息。
+         用处：保存线程的独立变量。对一个线程类（继承自Thread)
+         当使用ThreadLocal维护变量时，ThreadLocal为每个使用该变量的线程提供独立的变量副本，所以每一个线程都可以独立地改变自己的副本，
+         而不会影响其它线程所对应的副本。常用于用户登录控制，如记录session信息。
      
+        每个Thread的对象都有一个ThreadLocalMap，当创建一个ThreadLocal的时候，就会将该ThreadLocal对象添加到该Map中，
+        其中键就是ThreadLocal，值可以是任意类型
      
      
      *原子类（AtomicInteger、AtomicBoolean……）
-     如果使用atomic wrapper class如atomicInteger，或者使用自己保证原子的操作，则等同于synchronized
+        如果使用atomic wrapper class如atomicInteger，或者使用自己保证原子的操作，则等同于synchronized
      
-     //返回值为boolean
-     AtomicInteger.compareAndSet(int expect,int update)
-     该方法可用于实现乐观锁
-     ABA问题
-     用AtomicStampedReference解决
-     https://www.cnblogs.com/java20130722/p/3206742.html
+         //返回值为boolean
+         AtomicInteger.compareAndSet(int expect,int update)
+         该方法可用于实现乐观锁
+         ABA问题
+         用AtomicStampedReference解决
+         https://www.cnblogs.com/java20130722/p/3206742.html
      
      
      
      *Lock类　
-      lock: 在java.util.concurrent包内。共有三个实现：
-      
-      ReentrantLock
-      ReentrantReadWriteLock.ReadLock
-      ReentrantReadWriteLock.WriteLock
-      jdk 1.8 StampedLock(解决读写锁,写锁饥饿问题)
-      https://segmentfault.com/a/1190000015808032?utm_source=tag-newest
-      
-      多condition,sign(),await()
-      https://www.cnblogs.com/Wanted-Tao/p/6378942.html
-      
-      主要目的是和synchronized一样， 两者都是为了解决同步问题，处理资源争端而产生的技术。功能类似但有一些区别。
-      
-      区别如下：
-      
-      复制代码
-      lock更灵活，可以自由定义多把锁的枷锁解锁顺序（synchronized要按照先加的后解顺序）
-      提供多种加锁方案，lock 阻塞式, trylock 无阻塞式, lockInterruptily 可打断式， 还有trylock的带超时时间版本。
+          lock: 在java.util.concurrent包内。共有三个实现：
+          
+          ReentrantLock
+          ReentrantReadWriteLock.ReadLock
+          ReentrantReadWriteLock.WriteLock
+          jdk 1.8 StampedLock(解决读写锁,写锁饥饿问题)
+          https://segmentfault.com/a/1190000015808032?utm_source=tag-newest
+          
+          多condition,sign(),await()
+          https://www.cnblogs.com/Wanted-Tao/p/6378942.html
+          
+          主要目的是和synchronized一样， 两者都是为了解决同步问题，处理资源争端而产生的技术。功能类似但有一些区别。
+          
+          区别如下：
+          
+          复制代码
+          lock更灵活，可以自由定义多把锁的枷锁解锁顺序（synchronized要按照先加的后解顺序）
+          提供多种加锁方案，lock 阻塞式, trylock 无阻塞式, lockInterruptily 可打断式， 还有trylock的带超时时间版本。
      
      
      ReentrantReadWriteLock
-     
-     可重入读写锁（读写锁的一个实现）　
-     
-     　ReentrantReadWriteLock lock = new ReentrantReadWriteLock()
-     　　ReadLock r = lock.readLock();
-     　　WriteLock w = lock.writeLock();
-     两者都有lock,unlock方法。写写，写读互斥；读读不互斥。可以实现并发读的高效线程安全代码
-     
+         可重入读写锁（读写锁的一个实现）　
+         
+         　ReentrantReadWriteLock lock = new ReentrantReadWriteLock()
+         　　ReadLock r = lock.readLock();
+         　　WriteLock w = lock.writeLock();
+         两者都有lock,unlock方法。写写，写读互斥；读读不互斥。可以实现并发读的高效线程安全代码
+         
+     synchronized 关键字有两种作用域：
+     https://www.cnblogs.com/yangfei-beijing/p/5952934.html
+        1> 某个对象实例内，synchronized aMethod(){}关键字可以防止多个线程访问对象的synchronized方法
+        （如果一个对象有多个synchronized方法，只要一个线程访问了其中的一个synchronized方法，其它线程不能
+        同时访问这个对象中任何一个synchronized方法）。这时，不同的对象实例的synchronized方法是不相干扰的。
+        也就是说，其它线程照样可以同时访问相同类的另一个对象实例中的synchronized方法.
+        
+        2> 是某个类的范围，synchronized static aStaticMethod{}防止多个线程同时访问这个类中的synchronized
+         static 方法。它可以对类的所有对象实例起作用。
      
      *容器类
-     这里就讨论比较常用的两个：
-     
-     BlockingQueue
-     ConcurrentHashMap
-     
-     
+         这里就讨论比较常用的两个：
+         
+         BlockingQueue
+         ConcurrentHashMap
      
      *管理类
-     管理类的概念比较泛，用于管理线程，本身不是多线程的，但提供了一些机制来利用上述的工具做一些封装。
-     了解到的值得一提的管理类：ThreadPoolExecutor和 JMX框架下的系统级管理类 ThreadMXBean
-     ThreadPoolExecutor
-     如果不了解这个类，应该了解前面提到的ExecutorService，开一个自己的线程池非常方便：
-     
+         管理类的概念比较泛，用于管理线程，本身不是多线程的，但提供了一些机制来利用上述的工具做一些封装。
+         了解到的值得一提的管理类：ThreadPoolExecutor和 JMX框架下的系统级管理类 ThreadMXBean
+         ThreadPoolExecutor
+         如果不了解这个类，应该了解前面提到的ExecutorService，开一个自己的线程池非常方便：
+         
      复制代码
      ExecutorService e = Executors.newCachedThreadPool();
          ExecutorService e = Executors.newSingleThreadExecutor();
@@ -497,14 +1135,10 @@
          e.execute(new MyRunnableImpl());
          
      
-     
-     
      *读写锁
      https://blog.csdn.net/zwjyyy1203/article/details/80231303
      
-     
      *CountDownLatch
-     
      　　CountDownLatch可以理解为一个计数器在初始化时设置初始值，当一个线程需要等待某些操作先完成时，需要调用await()方法。
         这个方法让线程进入休眠状态直到等待的所有线程都执行完成。每调用一次countDown()方法，内部计数器减1，直到计数器为0时唤醒。
         这个可以理解为特殊的CyclicBarrier。
@@ -545,7 +1179,8 @@
     
      fail-fast：
         机制是java集合(Collection)中的一种错误机制。当多个线程对同一个集合的内容进行操作时，就可能会产生fail-fast事件。 
-        例如：当某一个线程A通过iterator去遍历某集合的过程中，若该集合的内容被其他线程所改变了；那么线程A访问集合时，就会抛出ConcurrentModificationException异常，产生fail-fast事件
+        例如：当某一个线程A通过iterator去遍历某集合的过程中，若该集合的内容被其他线程所改变了；那么线程A访问集合时，
+        就会抛出ConcurrentModificationException异常，产生fail-fast事件
     
      happens-before:如果两个操作之间具有happens-before 关系，那么前一个操作的结果就会对后面一个操作可见。 
          1.程序顺序规则：一个线程中的每个操作，happens- before 于该线程中的任意后续操作。 
@@ -597,15 +1232,18 @@
             
             如果线程状态切换是一个高频操作时，这将会消耗很多CPU处理时间；
             如果对于那些需要同步的简单的代码块，获取锁挂起操作消耗的时间比用户代码执行的时间还要长，这种同步策略显然非常糟糕的。
-            synchronized会导致争用不到锁的线程进入阻塞状态，所以说它是java语言中一个重量级的同步操纵，被称为重量级锁，为了缓解上述性能问题，JVM从1.5开始，引入了轻量锁与偏向锁，默认启用了自旋锁，他们都属于乐观锁。
+            synchronized会导致争用不到锁的线程进入阻塞状态，所以说它是java语言中一个重量级的同步操纵，被称为重量级锁，为了缓解
+            上述性能问题，JVM从1.5开始，引入了轻量锁与偏向锁，默认启用了自旋锁，他们都属于乐观锁。
             
             明确java线程切换的代价，是理解java中各种锁的优缺点的基础之一
         
         *java中的锁
             自旋锁
-                自旋锁原理非常简单，如果持有锁的线程能在很短时间内释放锁资源，那么那些等待竞争锁的线程就不需要做内核态和用户态之间的切换进入阻塞挂起状态，它们只需要等一等（自旋），等持有锁的线程释放锁后即可立即获取锁，这样就避免用户线程和内核的切换的消耗。
+                自旋锁原理非常简单，如果持有锁的线程能在很短时间内释放锁资源，那么那些等待竞争锁的线程就不需要做内核态和用户态之间的切换
+                进入阻塞挂起状态，它们只需要等一等（自旋），等持有锁的线程释放锁后即可立即获取锁，这样就避免用户线程和内核的切换的消耗。
                 但是线程自旋是需要消耗cup的，说白了就是让cup在做无用功，线程不能一直占用cup自旋做无用功，所以需要设定一个自旋等待的最大时间。
-                如果持有锁的线程执行的时间超过自旋等待的最大时间扔没有释放锁，就会导致其它争用锁的线程在最大等待时间内还是获取不到锁，这时争用线程会停止自旋进入阻塞状态。
+                如果持有锁的线程执行的时间超过自旋等待的最大时间扔没有释放锁，就会导致其它争用锁的线程在最大等待时间内还是获取不到锁，
+                这时争用线程会停止自旋进入阻塞状态。
             
             自旋锁的优缺点
                 自旋锁尽可能的减少线程的阻塞，这对于锁的竞争不激烈，且占用锁时间非常短的代码块来说性能能大幅度的提升，因为自旋的消耗会小于线程阻塞挂起操作的消耗！
@@ -673,7 +1311,25 @@
             
             如果线程争用激烈，那么应该禁用偏向锁。
 
-    
+     start() 和 run()的区别
+         1。start():
+             我们先来看看API中对于该方法的介绍：
+                  使该线程开始执行；Java 虚拟机调用该线程的 run 方法。
+                  结果是两个线程并发地运行；当前线程（从调用返回给 start 方法）和另一个线程（执行其 run 方法）。
+                  多次启动一个线程是非法的。特别是当线程已经结束执行后，不能再重新启动。
+             用start方法来启动线程，真正实现了多线程运行，这时无需等待run方法体代码执行完毕而直接继续执行下面的代码。通过调用Thread类的 start()
+             方法来启动一个线程，这时此线程处于就绪（可运行）状态，并没有运行，一旦得到cpu时间片，就开始执行run()方法，这里方法 run()称为线程体，
+             它包含了要执行的这个线程的内容，Run方法运行结束，此线程随即终止。
+          
+         2。run():
+             我们还是先看看API中对该方法的介绍：
+                   如果该线程是使用独立的 Runnable 运行对象构造的，则调用该 Runnable 对象的 run 方法；否则，该方法不执行任何操作并返回。
+                 Thread 的子类应该重写该方法。
+             run()方法只是类的一个普通方法而已，如果直接调用Run方法，程序中依然只有主线程这一个线程，其程序执行路径还是只有一条，还是要顺序执行，
+             还是要等待run方法体执行完毕后才可继续执行下面的代码，这样就没有达到写线程的目的。
+         
+         3。总结：
+            调用start方法方可启动线程，而run方法只是thread的一个普通方法调用，还是在主线程里执行。
 
     
      *总结
@@ -686,6 +1342,7 @@
         volatile的实现原理
         AQS的实现过程
         CountDownLatch实现原理
+        start和run的区别
     
 ## 7.线程池
 
