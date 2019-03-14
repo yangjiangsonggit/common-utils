@@ -8,6 +8,7 @@
       首先在string池内找，找到？不创建string对象，否则创建，   这样就一个string对象 
       遇到new运算符号了，在内存上创建string对象，并将其返回给s，又一个对象 
       所以总共是2个对象 
+###结束
 
     stream
         https://www.cnblogs.com/Dorae/p/7779246.html
@@ -26,10 +27,9 @@
         影响并行流的因素
             数据大小；源数据结构（分割越容易越好），arraylist、数组比较好，hashSet、treeSet次之，linked最差；装箱；
             核的数量（可使用）；单元处理开销（越大越好）
-        
-
             
         https://crossoverjie.top/categories/Java-%E8%BF%9B%E9%98%B6/    (推荐)
+        
         
         
     Fork/Join框架详解
@@ -323,7 +323,7 @@
             -l : 除堆栈外，显示关于锁的附加信息    (常用)
             -m : 如果调用到本地方法的话，可以显示C/C++的堆栈
         
-##结束
+###结束
     
 
      *Java虚拟机垃圾回收(一) 基础 回收哪些内存/对象 
@@ -906,6 +906,7 @@
     5.ThreadLocal
          每个Thread的对象都有一个ThreadLocalMap，当创建一个ThreadLocal的时候，就会将该ThreadLocal对象添加到该Map中，
          其中键就是ThreadLocal，值可以是任意类型
+         每个线程用完了以后最好自己remove,不然长期存在的线程可能内存泄漏或者取到脏数据
     6.Atomic原子类
         ABA问题,用AtomicStampedReference解决,加版本号,CAS Unsage.compareAndSet
     7.volatile
@@ -914,6 +915,7 @@
         CLH(Craig,Landin,and Hagersten)队列是一个虚拟的双向队列（虚拟的双向队列即不存在队列实例，仅存在结点之间的关联关系）。
          AQS是将每条请求共享资源的线程封装成一个CLH锁队列的一个结点（Node）来实现锁的分配。
          用CAS操作来管理这个同步状态
+         内部内有Node和Condition,一个AQS一般包括一个同步队列和多个等待队列(多condition)
     9.lock
         ReentrantReadWriteLock,Reentrant,多condition,sign(),await()
         与synchronized的区别:
@@ -963,13 +965,16 @@
     19.lock和synchronized的区别
     20.Hashtable 是怎么加锁的 ？  基本所有方法都加synchronized
     21.HashMap 的并发问题    (put 和 Rehash) 
-    22.ConcurrenHashMap 介绍？1.8 中为什么要用红黑树？   (先用cas,再用synchronized)
-    23.如何检测死锁？怎么预防死锁？   (四个必要条件,破坏其中一个,画图,无环)
+    22.ConcurrenHashMap 介绍？1.8 中为什么要用红黑树？   (1.8 先用cas,再用synchronized)
+    23.如何检测死锁？怎么预防死锁？   (四个必要条件,破坏其中一个,画图,无环)  jstack -l 查看死锁
     24.ThreadLocal原理，用的时候需要注意什么？
         *在线程池环境下，由于线程是一直运行且复用的，使用ThreadLocal<T>时会出现这个任务看到上个任务ThreadLocal变量值以及内存泄露等问题，
          解决方法就是在当前任务执行完后将ThreadLocal变量remove或设置为初始值
-    25.并发容器
-    
+         调用get set 方法会清理key为null的值,线程池没调用时就会内存泄漏
+    25.并发容器     (Condition notEmpty  notFull)
+    26.Lock，tryLock，lockInterruptibly区别
+       
+
         
 
 ###结束
@@ -1118,7 +1123,14 @@
         *在线程池环境下，由于线程是一直运行且复用的，使用ThreadLocal<T>时会出现这个任务看到上个任务ThreadLocal变量值以及内存泄露等问题，
         解决方法就是在当前任务执行完后将ThreadLocal变量remove或设置为初始值
         
-     
+        ThreadLocalMap里面对Key的引用是弱引用。那么，就存在这样的情况：当释放掉对threadlocal对象的强引用后，map里面的value没有被回收，
+        但却永远不会被访问到了，因此ThreadLocal存在着内存泄露问题
+        Java为了最小化减少内存泄露的可能性和影响，在ThreadLocal进行get、set操作时会清除线程Map里所有key为null的value。所以最怕的情况就是，
+        ThreadLocal对象设null了，开始发生“内存泄露”，然后使用线程池，线程结束后被放回线程池中而不销毁，那么如果这个线程一直不被使用或者分配
+        使用了又不再调用get/set方法，那么这个期间就会发生真正的内存泄露。因此，最好的做法是：在不使用该ThreadLocal对象时，及时调用该对象的
+        remove方法去移除ThreadLocal.ThreadLocalMap中的对应Entry.
+        
+        
      
      *原子类（AtomicInteger、AtomicBoolean……）
         如果使用atomic wrapper class如atomicInteger，或者使用自己保证原子的操作，则等同于synchronized
@@ -1511,7 +1523,9 @@
 ###目录
     1.线程池参数,及计算方法
     2.分析线程池的实现原理和线程的调度过程？
-        待执行的线程放入阻塞队列,不停从队列中take,同事判断参数,决定是否创建新线程来处理
+        待执行的线程放入阻塞队列,不停从队列中take,同时判断参数,决定是否创建新线程来处理
+    3.线程池拒绝策略
+    
     
 ###结束
 
@@ -1611,55 +1625,2170 @@
             
             
     
-## 8.面试题
+## 8.面试题集锦
 
-    Java高级工程师面试题总结及参考答案
+###8.0 难题集中营
+    todo 列表
+        1.上千万数据的IP取前100个出现次数最多的     (todo)
+        https://blog.csdn.net/Iloveyougirls/article/details/81814524
+        2.Spring Boot 启动 流程(*)
+        https://juejin.im/post/5b679fbc5188251aad213110#heading-0
+        3.
+        
+
+###8.1 Java高级工程师面试题总结及参考答案
     https://www.cnblogs.com/cxxjohnson/p/10118067.html
     
-    限流，分布式锁，UUID
-    我现在要做一个限流功能, 怎么做?
-    令牌桶
-    这个限流要做成分布式的, 怎么做?
-    令牌桶维护到 Redis 里，每个实例起一个线程抢锁，抢到锁的负责定时放令牌
-    怎么抢锁?
-    Redis setnx
-    锁怎么释放?
-    抢到锁后设置过期时间，线程本身退出时主动释放锁，假如线程卡住了，锁过期那么其它线程可以继续抢占
-    加了超时之后有没有可能在没有释放的情况下, 被人抢走锁
-    有可能，单次处理时间过长，锁泄露
-    怎么解决?
-    换 zk，用心跳解决
-    不用 zk 的心跳, 可以怎么解决这个问题呢?
-    每次更新过期时间时，Redis 用 MULTI 做 check-and-set 检查更新时间是否被其他线程修改了，假如被修改了，说明锁已经被抢走，放弃这把锁
-    假如这个限流希望做成可配置的, 需要有一个后台管理系统随意对某个 api 配置全局流量, 怎么做？
-    在 Redis 里存储每个 API 的令牌桶 key，假如存在这个 key，则需要按上述逻辑进行限流
-    某一个业务中现在需要生成全局唯一的递增 ID, 并发量非常大, 怎么做
-    snowflake (这个其实答得不好，snowflake 无法实现全局递增，只能实现全局唯一，单机递增，面试结束后就想到了类似 TDDL 那样一次取一个 ID 段，放在本地慢慢分配的策略）
-    算法题, M*N 横向递增矩阵找指定数
-    只想到 O(M+N)的解法
+        限流，分布式锁，UUID
+        我现在要做一个限流功能, 怎么做?
+        令牌桶
+        这个限流要做成分布式的, 怎么做?
+        令牌桶维护到 Redis 里，每个实例起一个线程抢锁，抢到锁的负责定时放令牌
+        怎么抢锁?
+        Redis setnx
+        锁怎么释放?
+        抢到锁后设置过期时间，线程本身退出时主动释放锁，假如线程卡住了，锁过期那么其它线程可以继续抢占
+        加了超时之后有没有可能在没有释放的情况下, 被人抢走锁
+        有可能，单次处理时间过长，锁泄露
+        怎么解决?
+        换 zk，用心跳解决
+        不用 zk 的心跳, 可以怎么解决这个问题呢?
+        每次更新过期时间时，Redis 用 MULTI 做 check-and-set 检查更新时间是否被其他线程修改了，假如被修改了，说明锁已经被抢走，放弃这把锁
+        假如这个限流希望做成可配置的, 需要有一个后台管理系统随意对某个 api 配置全局流量, 怎么做？
+        在 Redis 里存储每个 API 的令牌桶 key，假如存在这个 key，则需要按上述逻辑进行限流
+        某一个业务中现在需要生成全局唯一的递增 ID, 并发量非常大, 怎么做
+        snowflake (这个其实答得不好，snowflake 无法实现全局递增，只能实现全局唯一，单机递增，面试结束后就想到了类似 TDDL 那样一次取一个 ID 段，放在本地慢慢分配的策略）
+        算法题, M*N 横向递增矩阵找指定数
+        只想到 O(M+N)的解法
+        
+        Java 中 HashMap 的存储, 冲突, 扩容, 并发访问分别是怎么解决的
+        Hash 表，拉链法（长度大于8变形为红黑树）,扩容*2 rehash，并发访问不安全
+        
+        拉链法中链表过长时变形为红黑树有什么优缺点?
+        优点：O(LogN) 的读取速度更快；缺点：插入时有 Overhead，O(LogN) 插入，旋转维护平衡
+        HashMap 的并发不安全体现在哪?
+        拉链法解决冲突，插入链表时不安全，并发操作可能导致另一个插入失效
+        https://www.cnblogs.com/qiumingcheng/p/5259892.html
+        
+        HashMap 在扩容时, 对读写操作有什么特殊处理?
+        
+        知道 CAS 吗? Java 中 CAS 是怎么实现的?
+        Compare and Swap，一种乐观锁的实现，可以称为"无锁"(lock-free)，CAS 由于要保证原子性无法由 JVM 本身实现，
+        需要调用对应 OS 的指令(这块其实我不了解细节)
     
-    Java 中 HashMap 的存储, 冲突, 扩容, 并发访问分别是怎么解决的
-    Hash 表，拉链法（长度大于8变形为红黑树）,扩容*2 rehash，并发访问不安全
+###8.2 常规面试题2
+        Java基础
+            1、List 和 Set 的区别
+            2、HashSet 是如何保证不重复的
+            3、HashMap 是线程安全的吗，为什么不是线程安全的（最好画图说明多线程环境下不安全）?
+            4、HashMap 的扩容过程
+            5、HashMap 1.7 与 1.8 的 区别，说明 1.8 做了哪些优化，如何优化的？
+            6、final finally finalize
+            7、强引用 、软引用、 弱引用、虚引用
+            8、Java反射
+            9、Arrays.sort 实现原理和 Collection 实现原理
+            10、LinkedHashMap的应用
+            11、cloneable接口实现原理
+            12、异常分类以及处理机制
+            13、wait和sleep的区别
+            14、数组在内存中如何分配
+        Java 并发
+            1、synchronized 的实现原理以及锁优化？
+            2、volatile 的实现原理？
+            3、Java 的信号灯？
+            4、synchronized 在静态方法和普通方法的区别？
+            5、怎么实现所有线程在等待某个事件的发生才会去执行？
+            6、CAS？CAS 有什么缺陷，如何解决？
+            7、synchronized 和 lock 有什么区别？
+            8、Hashtable 是怎么加锁的 ？
+            9、HashMap 的并发问题？
+            10、ConcurrenHashMap 介绍？1.8 中为什么要用红黑树？
+            11、AQS
+            12、如何检测死锁？怎么预防死锁？
+            13、Java 内存模型？
+            14、如何保证多线程下 i++ 结果正确？
+            15、线程池的种类，区别和使用场景？
+            16、分析线程池的实现原理和线程的调度过程？
+            17、线程池如何调优，最大数目如何确认？
+            18、ThreadLocal原理，用的时候需要注意什么？
+            19、CountDownLatch 和 CyclicBarrier 的用法，以及相互之间的差别?
+            20、LockSupport工具
+            21、Condition接口及其实现原理
+            22、Fork/Join框架的理解
+            23、分段锁的原理,锁力度减小的思考
+            24、八种阻塞队列以及各个阻塞队列的特性
+        Spring
+            1、BeanFactory 和 FactoryBean？
+            2、Spring IOC 的理解，其初始化过程？
+            3、BeanFactory 和 ApplicationContext？
+            4、Spring Bean 的生命周期，如何被管理的？
+            5、Spring Bean 的加载过程是怎样的？
+            6、如果要你实现Spring AOP，请问怎么实现？
+            7、如果要你实现Spring IOC，你会注意哪些问题？
+            8、Spring 是如何管理事务的，事务管理机制？
+            9、Spring 的不同事务传播行为有哪些，干什么用的？
+            10、Spring 中用到了那些设计模式？
+            11、Spring MVC 的工作原理？
+            12、Spring 循环注入的原理？
+            13、Spring AOP的理解，各个术语，他们是怎么相互工作的？
+            14、Spring 如何保证 Controller 并发的安全？
+        Netty
+            1、BIO、NIO和AIO
+            2、Netty 的各大组件
+            3、Netty的线程模型
+            4、TCP 粘包/拆包的原因及解决方法
+            5、了解哪几种序列化协议？包括使用场景和如何去选择
+            6、Netty的零拷贝实现
+            7、Netty的高性能表现在哪些方面
+        分布式相关
+            1、Dubbo的底层实现原理和机制
+            2、描述一个服务从发布到被消费的详细过程
+            3、分布式系统怎么做服务治理
+            4、接口的幂等性的概念
+            5、消息中间件如何解决消息丢失问题
+            6、Dubbo的服务请求失败怎么处理
+            7、重连机制会不会造成错误
+            8、对分布式事务的理解
+            9、如何实现负载均衡，有哪些算法可以实现？
+            10、Zookeeper的用途，选举的原理是什么？
+            11、数据的垂直拆分水平拆分。
+            12、zookeeper原理和适用场景
+            13、zookeeper watch机制
+            14、redis/zk节点宕机如何处理
+            15、分布式集群下如何做到唯一序列号
+            16、如何做一个分布式锁
+            17、用过哪些MQ，怎么用的，和其他mq比较有什么优缺点，MQ的连接是线程安全的吗
+            18、MQ系统的数据如何保证不丢失
+            19、列举出你能想到的数据库分库分表策略；分库分表后，如何解决全表查询的问题
+            20、zookeeper的选举策略
+            21、全局ID
+        数据库
+            1、mysql分页有什么优化
+            2、悲观锁、乐观锁
+            3、组合索引，最左原则
+            4、mysql 的表锁、行锁
+            5、mysql 性能优化
+            6、mysql的索引分类：B+，hash；什么情况用什么索引
+            7、事务的特性和隔离级别
+        缓存
+            1、Redis用过哪些数据数据，以及Redis底层怎么实现
+            2、Redis缓存穿透，缓存雪崩
+            3、如何使用Redis来实现分布式锁
+            4、Redis的并发竞争问题如何解决
+            5、Redis持久化的几种方式，优缺点是什么，怎么实现的
+            6、Redis的缓存失效策略
+            7、Redis集群，高可用，原理
+            8、Redis缓存分片
+            9、Redis的数据淘汰策略
+        JVM
+            1、详细jvm内存模型
+            2、讲讲什么情况下回出现内存溢出，内存泄漏？
+            3、说说Java线程栈
+            4、JVM 年轻代到年老代的晋升过程的判断条件是什么呢？
+            5、JVM 出现 fullGC 很频繁，怎么去线上排查问题？
+            6、类加载为什么要使用双亲委派模式，有没有什么场景是打破了这个模式？
+            7、类的实例化顺序
+            8、JVM垃圾回收机制，何时触发MinorGC等操作
+            9、JVM 中一次完整的 GC 流程（从 ygc 到 fgc）是怎样的
+            10、各种回收器，各自优缺点，重点CMS、G1
+            11、各种回收算法
+            12、OOM错误，stackoverflow错误，permgen space错误
     
-    拉链法中链表过长时变形为红黑树有什么优缺点?
-    优点：O(LogN) 的读取速度更快；缺点：插入时有 Overhead，O(LogN) 插入，旋转维护平衡
-    HashMap 的并发不安全体现在哪?
-    拉链法解决冲突，插入链表时不安全，并发操作可能导致另一个插入失效
-    https://www.cnblogs.com/qiumingcheng/p/5259892.html
+###8.3 常规面试题3
+        Java常见面试题总结
+        一、Java基础
+            1、String类为什么是final的。
+            2、HashMap的源码，实现原理，底层结构。
+            3、说说你知道的几个Java集合类：list、set、queue、map实现类咯。。。
+            4、描述一下ArrayList和LinkedList各自实现和区别
+            5、Java中的队列都有哪些，有什么区别。
+            6、反射中，Class.forName和classloader的区别
+            7、Java7、Java8的新特性(baidu问的,好BT)
+            8、Java数组和链表两种结构的操作效率，在哪些情况下(从开头开始，从结尾开始，从中间开始)，哪些操作(插入，查找，删除)的效率高
+            9、Java内存泄露的问题调查定位：jmap，jstack的使用等等
+            10、string、stringbuilder、stringbuffer区别
+            11、hashtable和hashmap的区别
+            13、异常的结构，运行时异常和非运行时异常，各举个例子
+            14、String a= “abc” String b = "abc" String c = new String("abc") String d = "ab" + "c" .他们之间用 == 比较的结果
+            15、String 类的常用方法
+            16、Java 的引用类型有哪几种
+            17、抽象类和接口的区别
+            18、java的基础类型和字节大小。
+            19、Hashtable,HashMap,ConcurrentHashMap 底层实现原理与线程安全问题（建议熟悉 jdk 源码，才能从容应答）
+            20、如果不让你用Java Jdk提供的工具，你自己实现一个Map，你怎么做。说了好久，说了HashMap源代码，如果我做，就会借鉴HashMap的原理，说了一通HashMap实现
+            21、 Hash冲突怎么办？哪些解决散列冲突的方法？
+            22、HashMap冲突很厉害，最差性能，你会怎么解决?从O（n）提升到log（n）咯，用二叉排序树的思路说了一通
+            23、rehash
+            24、hashCode() 与 equals() 生成算法、方法怎么重写
+         
+        二、Java IO
+            1、讲讲IO里面的常见类，字节流、字符流、接口、实现类、方法阻塞。
+            2、讲讲NIO。
+            3、String 编码UTF-8 和GBK的区别?
+            4、什么时候使用字节流、什么时候使用字符流?
+            5、递归读取文件夹下的文件，代码怎么实现
+         
+        三、Java Web
+            1、session和cookie的区别和联系，session的生命周期，多个服务部署时session管理。
+            2、servlet的一些相关问题
+            3、webservice相关问题
+            4、jdbc连接，forname方式的步骤，怎么声明使用一个事务。举例并具体代码
+            5、无框架下配置web.xml的主要配置内容
+            6、jsp和servlet的区别
+         
+        四、JVM
+            1、Java的内存模型以及GC算法
+            2、jvm性能调优都做了什么
+            3、介绍JVM中7个区域，然后把每个区域可能造成内存的溢出的情况说明
+            4、介绍GC 和GC Root不正常引用。
+            5、自己从classload 加载方式，加载机制说开去，从程序运行时数据区，讲到内存分配，讲到String常量池，讲到JVM垃圾回收机制，算法，hotspot。反正就是各种扩展
+            6、jvm 如何分配直接内存， new 对象如何不分配在堆而是栈上，常量池解析
+            7、数组多大放在 JVM 老年代（不只是设置 PretenureSizeThreshold ，问通常多大，没做过一问便知）
+            8、老年代中数组的访问方式
+            9、GC 算法，永久代对象如何 GC ， GC 有环怎么处理
+            10、谁会被 GC ，什么时候 GC
+            11、如果想不被 GC 怎么办
+            12、如果想在 GC 中生存 1 次怎么办
+         
+        五、开源框架
+            1、hibernate和ibatis的区别
+            2、讲讲mybatis的连接池。
+            3、spring框架中需要引用哪些jar包，以及这些jar包的用途
+            4. springMVC的原理
+            5、springMVC注解的意思
+            6、spring中beanFactory和ApplicationContext的联系和区别
+            7、spring注入的几种方式（循环注入）
+            8、spring如何实现事物管理的
+            9、springIOC
+            10、spring AOP的原理
+            11、hibernate中的1级和2级缓存的使用方式以及区别原理（Lazy-Load的理解）
+            12、Hibernate的原理体系架构，五大核心接口，Hibernate对象的三种状态转换，事务管理。
+         
+        六、多线程
+            1、Java创建线程之后，直接调用start()方法和run()的区别
+            2、常用的线程池模式以及不同线程池的使用场景
+            3、newFixedThreadPool此种线程池如果线程数达到最大值后会怎么办，底层原理。
+            4、多线程之间通信的同步问题，synchronized锁的是对象，衍伸出和synchronized相关很多的具体问题，例如同一个类不同方法都有synchronized锁，一个对象是否可以同时访问。或者一个类的static构造方法加上synchronized之后的锁的影响。
+            5、了解可重入锁的含义，以及ReentrantLock 和synchronized的区别
+            6、同步的数据结构，例如concurrentHashMap的源码理解以及内部实现原理，为什么他是同步的且效率高
+            7、atomicinteger和volatile等线程安全操作的关键字的理解和使用
+            8、线程间通信，wait和notify
+            9、定时线程的使用
+            10、场景：在一个主线程中，要求有大量(很多很多)子线程执行完之后，主线程才执行完成。多种方式，考虑效率。
+            11、进程和线程的区别
+            12、什么叫线程安全？举例说明
+            13、线程的几种状态
+            14、并发、同步的接口或方法
+            15、HashMap 是否线程安全，为何不安全。 ConcurrentHashMap，线程安全，为何安全。底层实现是怎么样的。
+            16、J.U.C下的常见类的使用。 ThreadPool的深入考察； BlockingQueue的使用。（take，poll的区别，put，offer的区别）；原子类的实现。
+            17、简单介绍下多线程的情况，从建立一个线程开始。然后怎么控制同步过程，多线程常用的方法和结构
+            18、volatile的理解
+            19、实现多线程有几种方式，多线程同步怎么做，说说几个线程里常用的方法
+         
+        七、网络通信
+            1、http是无状态通信，http的请求方式有哪些，可以自己定义新的请求方式么。
+            2、socket通信，以及长连接，分包，连接异常断开的处理。
+            3、socket通信模型的使用，AIO和NIO。
+            4、socket框架netty的使用，以及NIO的实现原理，为什么是异步非阻塞。
+            5、同步和异步，阻塞和非阻塞。
+            6、OSI七层模型，包括TCP,IP的一些基本知识
+            7、http中，get post的区别
+            8、说说http,tcp,udp之间关系和区别。
+            9、说说浏览器访问www.taobao.com，经历了怎样的过程。
+            10、HTTP协议、  HTTPS协议，SSL协议及完整交互过程；
+            11、tcp的拥塞，快回传，ip的报文丢弃
+            12、https处理的一个过程，对称加密和非对称加密
+            13、head各个特点和区别
+            14、说说浏览器访问www.taobao.com，经历了怎样的过程。
+         
+        八、数据库MySql
+            1、MySql的存储引擎的不同
+            2、单个索引、联合索引、主键索引
+            3、Mysql怎么分表，以及分表后如果想按条件分页查询怎么办(如果不是按分表字段来查询的话，几乎效率低下，无解)
+            4、分表之后想让一个id多个表是自增的，效率实现
+            5、MySql的主从实时备份同步的配置，以及原理(从库读主库的binlog)，读写分离
+            6、写SQL语句。。。
+            7、索引的数据结构，B+树
+            8、事务的四个特性，以及各自的特点（原子、隔离）等等，项目怎么解决这些问题
+            9、数据库的锁：行锁，表锁；乐观锁，悲观锁
+            10、数据库事务的几种粒度；
+            11、关系型和非关系型数据库区别
+         
+        九、设计模式
+            1、单例模式：饱汉、饿汉。以及饿汉中的延迟加载,双重检查
+            2、工厂模式、装饰者模式、观察者模式。
+            3、工厂方法模式的优点（低耦合、高内聚，开放封闭原则）
+         
+        十、算法
+            1、使用随机算法产生一个数，要求把1-1000W之间这些数全部生成。（考察高效率，解决产生冲突的问题）
+            2、两个有序数组的合并排序
+            3、一个数组的倒序
+            4、计算一个正整数的正平方根
+            5、说白了就是常见的那些查找、排序算法以及各自的时间复杂度
+            6、二叉树的遍历算法
+            7、DFS,BFS算法
+            9、比较重要的数据结构，如链表，队列，栈的基本理解及大致实现。
+            10、排序算法与时空复杂度（快排为什么不稳定，为什么你的项目还在用）
+            11、逆波兰计算器
+            12、Hoffman 编码
+            13、查找树与红黑树
+         
+        十一、并发与性能调优
+            1、有个每秒钟5k个请求，查询手机号所属地的笔试题(记得不完整，没列出)，如何设计算法?请求再多，比如5w，如何设计整个系统?
+            2、高并发情况下，我们系统是如何支撑大量的请求的
+            3、集群如何同步会话状态
+            4、负载均衡的原理
+            5、如果有一个特别大的访问量，到数据库上，怎么做优化（DB设计，DBIO，SQL优化，Java优化）
+            6、如果出现大面积并发，在不增加服务器的基础上，如何解决服务器响应不及时问题“。
+            7、假如你的项目出现性能瓶颈了，你觉得可能会是哪些方面，怎么解决问题。
+            8、如何查找 造成 性能瓶颈出现的位置，是哪个位置照成性能瓶颈。
+            9、你的项目中使用过缓存机制吗？有没用用户非本地缓存
+         
+        十二、其他
+            1、常用的linux下的命令
+            
+###8.4 阿里最全面试120道题目
+        https://blog.csdn.net/Z_Date/article/details/84307201
+        https://www.cnblogs.com/my376908915/p/6825896.html  (带答案)
+        
+        1. junit用法，before,beforeClass,after, afterClass的执行顺序
+        
+        一个测试类单元测试的执行顺序为：
+        
+        @BeforeClass –> @Before –> @Test –> @After –> @AfterClass
+        
+        每一个测试方法的调用顺序为：
+        
+        @Before –> @Test –> @After
+        
+        参考： http://blog.csdn.net/wangpeng047/article/details/9631193
+        
+        
+        2. 分布式锁
+        
+        一、zookeeper 瞬时有序节点：每个客户端对某个功能加锁时，在zookeeper上的与该功能对应的指定节点的目录下，生成一个唯一的瞬时有序节点
+        
+        二、memcached add函数：add会添加第一个到达的值，并返回true，后续的添加则都会返回false。（无法持久化）
+        
+        三、redis分布式锁
+        
+        redis分布式锁即可以结合zk分布式锁锁高度安全和memcached并发场景下效率很好的优点，可以利用jedis客户端实现。
+        
+        参考http://blog.csdn.net/java2000_wl/article/details/8740911
+        
+        http://surlymo.iteye.com/blog/2082684
+        
+        
+        3. nginx的请求转发算法，如何配置根据权重转发
+        
+        当在一台主机上部署了多个不同的web服务器，并且需要能在80端口同时访问这些web服务器时，可以使用 nginx 的反向代理功能: 用 nginx 在80端口监听所有请求，并依据转发规则(比较常见的是以 URI 来转发)转发到对应的web服务器上。
+        
+        例如有 webmail , webcom 以及 webdefault 三个服务器分别运行在 portmail , portcom , portdefault 端口，要实现从80端口同时访问这三个web服务器，则可以在80端口运行 nginx， 然后将 /mail 下的请求转发到 webmail 服务器， 将 /com下的请求转发到 webcom 服务器， 将其他所有请求转发到 webdefault 服务器。
+        
+        http://blog.csdn.net/tobacco5648/article/details/51099426
+        
+        
+        4. 用hashmap实现redis有什么问题
+        
+        （死锁，死循环，可用ConcurrentHashmap）
+        
+        
+        5. 线程的状态
+        
+        五个状态之一：新建状态、就绪状态、运行状态、阻塞状态及死亡状态。
+        
+        
+        5. 线程的阻塞的方式
+        
+        sleep() wait() join()
+        
+        
+        6. sleep和wait的区别
+        
+        对于sleep()方法，是属于Thread类中的。而wait()方法，则是属于Object类中的。
+        
+        sleep()方法导致了程序暂停执行指定的时间，让出cpu该其他线程，线程不会释放对象锁。
+        
+        而当调用wait()方法的时候，线程会放弃对象锁，对象调用notify()方法后本线程才获取对象锁进入运行状态。
+        
+        
+        7. hashmap的底层实现
+        
+        HashMap是基于哈希表的Map接口的非同步实现（Hashtable跟HashMap很像，唯一的区别是Hashtalbe中的方法是线程安全的，也就是同步的）。
+        
+        HashMap底层就是一个数组，数组中的每一项又是一个链表。当程序试图将一个key-value对放入HashMap中时，程序首先根据该 key 的 hashCode() 返回值决定该 Entry 的存储位置：如果两个 Entry 的 key 的 hashCode() 返回值相同，那它们的存储位置相同。如果这两个 Entry 的 key 通过 equals 比较返回 true，新添加 Entry 的 value 将覆盖集合中原有 Entry 的 value，但key不会覆盖。如果这两个 Entry 的 key 通过 equals 比较返回 false，新添加的 Entry 将与集合中原有 Entry 形成 Entry 链
+        
+        http://www.cnblogs.com/ITtangtang/p/3948406.html
+        
+        
+        8. 一万个人抢100个红包，如何实现（不用队列），如何保证2个人不能抢到同一个红包？
+        
+        可用jedisLock—redis分布式锁实现：基本原理：用一个状态值表示锁，对锁的占用和释放通过状态值来标识。
+        
+        SETNX key value/expire KEY seconds/del KEY
+        
+        http://blog.csdn.net/u010359884/article/details/50310387
+        
+        http://www.cnblogs.com/0201zcr/p/5942748.html
+        
+        
+        9. java内存模型，
+        
+        垃圾回收机制，不可达算法
+        
+        
+        10. 两个Integer的引用对象传给一个swap方法在方法内部交换引用，返回后，两个引用的值是否会发现变化
+        
+        不会！Java里方法的参数传递方式只有一种：值传递。
+        
+        Integer a =1;Integer b=2; swap(Integer a1,Integer b1){c=b1;b1=a1;a1=c}
+        
+        
+        
+        11. aop的底层实现，动态代理是如何动态，假如有100个对象，如何动态的为这100个对象代理
+        
+        AOP的核心机制通过动态代理来实现(jdk动态代理和cglib动态代理)
+        
+        
+        12. 是否用过maven install。 maven test。Git（make install是安装本地jar包）
+        
+        maven install 生成jar包
+        
+        maven test 运行 src/test/java下的测试用例
+        
+        mvn install -Dmaven.test.skip=true跳过测试
+        
+        http://www.cnblogs.com/phoebus0501/archive/2011/05/10/2042511.html
+        
+        
+        13. tomcat的各种配置，如何配置docBase
+        
+        appBase这个目录下面的子目录将自动被部署为应用
+        
+        docBase只是指向了你某个应用的目录
+        
+        http://blog.csdn.net/liuxuejin/article/details/9104055
+        
+        
+        14. spring的bean配置的几种方式
+        
+        基于XML的配置、基于注解的配置和基于Java类的配置。
+        
+        http://www.cnblogs.com/zhangwenjing/p/3546006.html
+        
+        
+        15. web.xml的配置
+        
+        最终加载顺序：ServletContext -> listener -> filter -> servlet
+        
+        http://www.cnblogs.com/xxoome/p/5954633.html
+        
+        
+        16. spring的监听器。
+        
+        http://blog.csdn.net/xrt95050/article/details/6132179
+        
+        
+        17. zookeeper的实现机制，有缓存，如何存储注册服务的
+        
+        ZooKeeper是Hadoop Ecosystem中非常重要的组件，它的主要功能是为分布式系统提供一致性协调(Coordination)服务
+        
+        http://blog.csdn.net/xinguan1267/article/details/38422149
+        
+        
+        18. IO会阻塞吗？readLine是不是阻塞的
+        
+        readLine()是一个阻塞函数，当没有数据读取时，就一直会阻塞在那，而不是返回null
+        
+        readLine()只有在数据流发生异常或者另一端被close()掉时，才会返回null值。
+        
+        http://blog.csdn.net/swingline/article/details/5357581
+        
+        
+        19. 用过spring的线程池还是java的线程池？
+        
+        SpringFrameWork 的 ThreadPoolTaskExecutor 是辅助 JDK 的 ThreadPoolExecutor 的工具类，它将属性通过 JavaBeans 的命名规则提供出来，方便进行配置。
+        
+        http://www.cnblogs.com/chkk/p/5386356.html
+        
+        
+        20. 字符串的格式化方法 （20，21这两个问题问的太低级了）
+        
+        String类的format()方法
+        
+        21. 时间的格式化方法
+        
+        SimpleDateFormat的format()方法
+        22. 定时器用什么做的
+        
+        http://lengchaotian.iteye.com/blog/1887439
+        
+        
+        23. 线程如何退出结束
+        
+        1. 使用退出标志，使线程正常退出，也就是当run方法完成后线程终止。 while (!exit);
+        2. 使用stop方法强行终止线程。
+        3. 使用interrupt方法中断线程。
+        
+        
+        24. java有哪些锁？
+        
+        乐观锁 悲观锁 synchronized 可重入锁 读写锁,
+        
+        用过reentrantlock吗？reentrantlock与synmchronized的区别
+        
+        1. 等待可中断 tryLock(long timeout, TimeUnit unit)。
+        
+        2.公平锁与非公平锁(synchronized的是非公平锁）
+        
+        3.绑定多个Condition
+        
+        http://www.cnblogs.com/fanguangdexiaoyuer/p/5313653.html
+        
+        
+        25. ThreadLocal的使用场景
+        
+        ThreadLocal就是用于线程间的数据隔离的。最适合的是按线程多实例（每个线程对应一个实例）的对象的访问
+        
+        
+        26. java的内存模型，垃圾回收机制
+        
+        
+        27. 为什么线程执行要调用start而不是直接run
+        
+        （直接run，跟普通方法没什么区别，先调start，run才会作为一个线程方法运行）
+        
+        
+        28. qmq消息的实现机制(qmq是去哪儿网自己封装的消息队列)
+        29. 遍历hashmap的三种方式
+        
+        方式1：通过遍历keySet()遍历HashMap的value
+        用时:61
+        方式2：通过遍历values()遍历HashMap的value
+        用时:7
+        方式3：通过entrySet().iterator()遍历HashMap的key和映射的value
+        用时:12
+        
+        http://blog.csdn.net/fly_zxy/article/details/43015193
+        
+         
+        
+        30. jvm的一些命令
+        
+        jps jstat jmap jhat jstack jinfo
+        
+         
+        
+        31. memcache和redis的区别
+        
+        1  Redis不仅仅支持简单的k/v类型的数据，同时还提供list，set，zset，hash等数据结构的存储。
+        2  Redis支持数据的备份，即master-slave模式的数据备份。
+        3  Redis支持数据的持久化，可以将内存中的数据保持在磁盘中，重启的时候可以再次加载进行使用
+        
+        http://blog.csdn.net/tonysz126/article/details/8280696/
+        
+        32. MySQL的行级锁加在哪个位置
+        
+        表级，直接锁定整张表，在你锁定期间，其它进程无法对该表进行写操作。如果你是写锁，则其它进程则读也不允许
+        行级,，仅对指定的记录进行加锁，这样其它进程还是可以对同一个表中的其它记录进行操作。
+        页级，表级锁速度快，但冲突多，行级冲突少，但速度慢。所以取了折衷的页级，一次锁定相邻的一组记录。
+        
+        http://www.jb51.net/article/50047.htm
+        
+        
+        33. ConcurrentHashmap的锁是如何加的？是不是分段越多越好
+        
+        http://www.cnblogs.com/my376908915/p/6759667.html
+        
+        
+        34. myisam和innodb的区别
+        
+        （innodb是行级锁，myisam是表级锁）
+        
+        
+        35. mysql其他的性能优化方式
+        
+        http://www.cnblogs.com/eric-gao/articles/5549801.html
+        
+         
+        
+        36. linux系统日志在哪里看
+        
+        /var/log/*     ，用Ls / cat查看
+        
+        http://mushme.iteye.com/blog/1001478
+        
+         
+        
+        37. 如何查看网络进程
+        
+        38. 统计一个整数的二进制表示中bit为1的个数
+        
+        while (n >0)
+            {
+                if((n &1) ==1) // 当前位是1
+                    ++c ; // 计数器加1
+                n >>=1 ; // 移位
+            }
+        http://www.cnblogs.com/graphics/archive/2010/06/21/1752421.html
+        
+         
+        
+        39. jvm内存模型，java内存模型
+        
+        http://www.cnblogs.com/my376908915/p/6753498.html
+        
+         
+        
+        40. 如何把java内存的数据全部dump出来
+        jmap来获取内存镜像；MAT/ visualvm来进行内存镜像分析
+        http://f.dataguru.cn/thread-714170-1-1.html
+        
+        41. 如何手动触发全量回收垃圾，如何立即触发垃圾回收
+        
+        手动调用gc函数
+        
+         
+        
+        42. hashmap如果只有一个写其他全读会出什么问题
+        
+        如果value为空(表示这个key还没有插入)，那么很可能同时几个线程get的value都是null
+        
+         
+        
+        43. git rebase git merge 区别
+        
+        在当前的分支下rebase一下master分支，这样我这个分支的几个commits相对于master还是处于最顶端的，也就是说rebase主要用来跟上游同步，同时把自己的修改顶到最上面。
+        
+        用rebase有时候会需要多次fix冲突；用merge确实只需要解决一遍冲突，比较简单粗暴。
+        
+         
+        
+        44. mongodb和hbase的区别
+        
+        Redis定位在"快"，HBase定位于"大",mongodb定位在"灵活"。
+        
+        mongodb可以当作简单场景下的但是性能高数倍的MySQL,定位是取代关系型数据库，想当一个主流数据库。因为他有非结构化、方便扩充字段、写性能优于mysql。万事万物有利有弊，mongodb的内存型缓存内容，让其速度飞快，带来内存率多，掉电数据问题等
+        
+        Redis基本只会用来做缓存，是一个小而美的数据库，主要用在key-value 的内存缓存，读写性能极佳，list，set，hash等几种简单结构使得使用也很简单。缓存与简单是其定位，分布式redis架构的出现，让redis更加广泛的使用，稳坐缓存第一把交椅。
+        
+        HBase用来做离线计算，定位非结构化大数据，可伸缩性好，并不是完全高可用，底层依靠hadoop提供的HDFS，使用时有一整套zookeeper，pig，hive的生态系统。
+        
+         
+        
+        45. 如何解决并发问题
+        
+        代码中的处理就是线程池，多线程，生产者消费者的应用了。
+        
+        一、 web外网加速相关技术
+        1.	镜像站点:譬如一个美国网站的中国镜像可以使来自中国的用户直接从这个中国的镜像访问，从而加快了速度。这可以看作是一种全球范围的缓存。
+        2.	DNS负载均衡:在DNS服务器中为同一个主机名配置多个IP地址，DNS服务器对每个查询将以DNS文件中主机记录的IP地址按顺序返回不同的解析结果，将客户端的访问引导到不同的机器上去，从而达到负载均衡的目的
+        3.	CDN内容分发:尽可能避开互联网上有可能影响数据传输速度和稳定性的瓶颈和环节
+        二、	内网加速技术
+        
+        0. HTML静态化 ：HTTP请求---Web服务器---Servlet--HTML--响应请求
+        1．	负载均衡（软件负载均衡：LVS、Nginx，第七层（应用层）的应用。硬件负载均衡：F5，第四层(传输层)上的应用）
+        2．	Web缓存服务器（数据库缓存：memcached/redis来做缓存集群）
+        3．	Web/应用服务器分布式文件系统（图片服务器分离 )
+        4．	分布式数据库。数据库主从分布： M-M-Slaves方式，2个主Mysql（写），多个Slaves（读-负载均衡，结合LVS）。数据库分割：从业务层面上进行分区，比如id，切分到不同的数据库集群去。）
+        
+        http://www.ablanxue.com/prone_1020_1.html
+        
+        
+        46. volatile的用途
+        
+        一个最常见的volatile的应用场景是boolean的共享状态标志位，或者单例模式的双重检查锁
+        
+        http://www.cnblogs.com/my376908915/p/6757533.html
+        
+        
+        47. java线程池
+        
+        http://www.cnblogs.com/my376908915/p/6761364.html
+        
+        
+        48. mysql的binlog
+        
+        binlog日志用于记录所有更新了数据或者已经潜在更新了数据（例如，没有匹配任何行的一个DELETE）的所有语句。语句以“事件”的形式保存，它描述数据更改。
+        
+        作用:因为有了数据更新的binlog，所以可以用于实时备份，与master/slave复制。
+        
+        http://blog.csdn.net/wyzxg/article/details/7412777
+        
+        
+        49. 代理模式
+        50. mysql是如何实现事务的
+        MySQL的事务支持不是绑定在MySQL服务器本身，而是与存储引擎相关
+        
+        1.MyISAM：不支持事务，用于只读程序提高性能
+        
+        2.InnoDB：支持ACID事务、行级锁、并发
+        
+        3.Berkeley DB：支持事务
+        
+        在MySQL中，事务开始使用COMMIT或ROLLBACK语句开始工作和结束。
+        
+        http://www.cnblogs.com/ymy124/p/3718439.html
+        
+         
+        
+        51. 读写分离何时强制要读主库，读哪个从库是通过什么方式决定的，从库的同步mysql用的什么方式
+        
+        开启了读写分离，在写数据的时候写入了主库，写完都需要刷新redis缓存，强制要读主库。在写操作的同步延迟窗口之内读，则读取主库，其他情况下读从库。
+        
+        读写一致：http://www.it610.com/article/4872058.htm
+        
+         
+        
+        主从架构本来就是一种高可用性解决方案，主从架构下的强一致性（银行业）：只需要在主机写入时，确认更新已经同步到备机之后，再返回写操作成功即可。主流数据库均支持这种完全的同步模式。（MySQL的Semi-sync功能）
+        
+        目前互联网企业对于“高并发的写操作”问题比较典型的解决方案是分表分库+写缓存，增加针对写操作的缓存层，把写操作放到队列里，排队到数据库结点上异步执行。（在数据库层之上架构一个redis这样的分布式缓存）
+        
+         
+        
+        
+        52. mysql的存储引擎
+        
+        MySQL5.5以后默认使用InnoDB存储引擎，其中InnoDB和BDB提供事务安全表，其它存储引擎都是非事务安全表。若要修改默认引擎，可以修改配置文件中的default-storage-engine。
+        
+        http://www.cnblogs.com/gbyukg/archive/2011/11/09/2242271.html
+        
+        
+        53. mysql的默认隔离级别，其他隔离级别
+        
+        Read Uncommitted（读取未提交内容）,脏读
+        
+        Read Committed（读取提交内容）：大多数数据库系统的默认隔离级别，不可重复读
+        
+        Repeatable Read（可重读）：MySQL的默认事务隔离级别，幻读
+        
+        Serializable（可串行化）：最高的隔离级别
+        
+        http://www.jb51.net/article/96179.htm
+        
+        
+        54. 将一个链表反转（用三个指针，但是每次只发转一个）
+        
+        思路：从原链表的头部一个一个取节点并插入到新链表的头部
+        
+        思路：每次都将原第一个结点之后的那个结点放在新的表头后面。
+        
+        http://blog.csdn.net/hyqsong/article/details/49429859
+        
+        
+        55. spring Aop的实现原理，具体说说
+        
+        IOC（反转控制）：对成员变量的赋值的控制权从代码中反转到配置文件中。
+        AOP：Aspect（切面） Oriented（面向） Programming（编程），面向切面编程。
+        
+        动态代理和发射技术，已经基本实现了AOP的功能: http://www.jb51.net/article/81788.htm
+        
+        
+        56. 何时会内存泄漏，内存泄漏会抛哪些异常
+        
+        首先，这些对象是可达的，即在有向图中，存在通路可以与其相连；
+        其次，这些对象是无用的，即不被程序使用，然而它却占用内存。
+        
+        一个生存周期远大于另一个生存周期，而且生存周期大的对象有指向生存周期小的对象的引用，
+        
+        而且生存周期小的对象不再有指向其他对象的引用，那好，既然大的有指向小的引用，那垃圾回收器对小的也无可奈何。
+        
+        memory leak：最终会导致out of memory！
+        
+        
+        57. 是否用过Autowire注解
+        
+        Spring 2.5 引入了 @Autowired 注释，它可以对类成员变量、方法及构造函数进行标注，完成自动装配的工作。 通过 @Autowired的使用来消除 set ，get方法。
+        
+        Spring 通过一个 BeanPostProcessor 对 @Autowired 进行解析，所以要让 @Autowired 起作用必须事先在 Spring 容器中声明 AutowiredAnnotationBeanPostProcessor Bean。
+        
+        Spring 将直接采用 Java 反射机制对 Boss 中的 car 和 office 这两个私有成员变量进行自动注入。
+        
+        
+        58. spring的注入bean的方式
+        
+        Spring中依赖注入有三种注入方式：
+        
+        一、构造器注入；
+        
+        二、设值注入（setter方式注入）；
+        
+        三、Feild方式注入（注解方式注入）。
+        
+        http://glzaction.iteye.com/blog/1299441
+        
+        
+        59. sql语句各种条件的执行顺序，如select， where， order by， group by
+        
+        from--where--group by--having--select--order by---limit
+        
+        http://www.cnblogs.com/huminxxl/p/3149097.html
+        
+        
+        60. select  xx from xx where xx and xx order by xx limit xx； 如何优化这个（看explain）
+        加limit，和不加走的索引不一样。 select  xx from （select  xx from xx where xx and xx order by xx ） yy limit xx；
+        在order by  limit 一起时 执行顺序不是按照：where ------order by ------ limit
+        
+        而是：order by ----- limit -------where的顺序去执行，这样就会有一个问题，按照我们管用的思路，上面的查询肯定是会丢失数据的。
+        
+        http://blog.csdn.net/wulantian/article/details/42679167
+        
+         
+        
+        MySQL 对于千万级的大表要怎么优化？
+        
+        第一优化你的sql和索引；MySQL性能优化的最佳20+条经验：http://coolshell.cn/articles/1846.html
+        
+        第二加缓存，memcached,redis；
+        
+        第三以上都做了后，还是慢，就做主从复制或主主复制，读写分离
+        
+        第四如果以上都做了还是慢，不要想着去做切分，mysql自带分区表：http://www.cnblogs.com/zemliu/archive/2013/07/21/3203511.html
+        
+        第五如果以上都做了，那就先做垂直拆分，其实就是根据你模块的耦合度，将一个大的系统分为多个小的系统，也就是分布式系统；列与列之间关联性不大的时候，垂直切分。
+        
+        第六才是水平切分，针对数据量大的表，行很多的时候水平切分表，表名取模：http://www.cnblogs.com/sns007/p/5790838.html
+        
+         
+        
+        61. 四则运算写代码
+        
+        http://www.jb51.net/article/71487.htm
+        
+         
+        
+        62. 统计100G的ip文件中出现ip次数最多的100个ip
+        
+        1，分割IP：读原始文件，去掉IP中的点转化为一个long型变量，取模为0,1,2...99的 IP都分到一个（写）文件了。（内存不够，分而治之http://blog.csdn.net/yan5105105/article/details/50783262）
+        
+        2，哈希表map<(ip, count>，将每个IP作为关键字映射为出现次数，这个哈希表建好之后也得先写入硬盘
+        
+        3，建小顶堆，每次有数据输入的时候可以先与根节点比较。若小于或等于根节点，则舍弃；否则用新数值替换根节点数值。并进行最小堆的调整。http://blog.csdn.net/ephuizi/article/details/11790957
+        
+        基于堆实现的优先级队列：PriorityQueue 解决 Top K 问题：https://my.oschina.net/leejun2005/blog/135085
+        
+        
+        63. zookeeper的事务，结点，服务提供方挂了如何告知消费方
+        64. 5台服务器如何选出leader
+        
+        分布式-选举算法（bully算法）：
+        
+        当任何一个进程发现协调者不响应请求时，他发起一次选举，选举过程如下：
+        
+        a， P进程向所有编号比他大的进程发送一个election消息；
+        
+        b， 如果无人响应，则P获胜，成为协调者
+        
+        c，如果编号比他大的进程响应，则由响应者接管选举工作，P的工作完成。
+        
+        http://blog.csdn.net/huangwei19892008/article/details/9004970
+        
+         
+        
+        65. 适配器和代理模式的区别
+        
+        代理模式（Proxy）：为其他对象提供一种代理以控制对这个对象的访问。用同一接口的子类的方法去 实现接口的方法
+        
+        适配器模式（Adapter）：将一个类的接口转换成客户希望的另外一个接口，使得原本接口不兼容而不能一起工作的那些类可以一起工作。用不同接口的子类的方法去 实现接口的方法
+        
+        
+        66. 读写锁
+        
+        对于读多写少的场景，一个读操作无须阻塞其它读操作，只需要保证读和写  或者 写与写  不同时发生即可。
+        
+        读写锁的锁定规则如下：
+        获得读锁后，其它线程可获得读锁而不能获取写锁
+        获得写锁后，其它线程既不能获得读锁也不能获得写锁
+        
+        http://www.cnblogs.com/my376908915/p/6758681.html
+        
+        
+        67. static加锁
+        
+        synchronized是对类的当前实例进行加锁，防止其他线程同时访问该类的该实例的所有synchronized块，注意这里是“ 类的当前实例 ”，类的两个不同实例就没有这种约束了。
+        
+        那么static synchronized恰好就是要控制类的所有实例的访问了，static synchronized是限制线程同时访问jvm中该类的所有实例同时访问对应的代码块。
+        
+        http://blog.csdn.net/zbuger/article/details/50827762
+        
+        
+        68. 事务隔离级别
+        
+        MySQL数据库为我们提供的四种隔离级别：
+        
+        　　① Serializable (串行化)：可避免脏读、不可重复读、幻读的发生。
+        
+        　　② Repeatable read (可重复读)：可避免脏读、不可重复读的发生。
+        
+        　　③ Read committed (读已提交)：可避免脏读的发生。
+        
+        　　④ Read uncommitted (读未提交)：最低级别，任何情况都无法保证。
+        
+        http://www.cnblogs.com/fjdingsd/p/5273008.html
+        
+        
+        69. 门面模式，类图(外观模式)
+        
+        为子系统中的一组接口提供一个一致的界面，此模式定义了一个高层接口，这个接口使得这一子系统更加容易使用。
+        
+        http://www.cnblogs.com/wangjq/archive/2012/07/10/2583672.html
+        
+        
+        70. mybatis如何映射表结构
+        在SqlMapConfig.xml中 
+        <typeAliases>
+        <typeAlias alias="game" type="实体类路径"/>
+        </typeAliases>
+        这就是把你的实体类写了个别名
+        
+        最后：在写查询添加的时候：
+        <select id="gameDao" resultType="game">返回实体类对象
+        select * from tb_game
+        </select>
+        这样查出的结果就对应上数据了。
+        
+        71. 二叉树遍历
+        
+        前序、中序以及后序三种遍历方法。
+        
+        递归实现：
+        
+        void preOrder1(BinTree *root)     //递归前序遍历，按照“根结点-左孩子-右孩子”的顺序进行访问。
+        {
+            if(root!=NULL)
+            {
+                cout<<root->data<<" ";
+                preOrder1(root->lchild);
+                preOrder1(root->rchild);
+            }
+        }
+        
+        非递归实现：
+        1)访问结点P，并将结点P入栈;
+        2)判断结点P的左孩子是否为空，若为空，则取栈顶结点并进行出栈操作，并将栈顶结点的右孩子置为当前的结点P，循环至1);若不为空，则将P的左孩子置为当前的结点P;
+        3)直到P为NULL并且栈为空，则遍历结束。
+        void preOrder2(BinTree *root)     //非递归前序遍历 
+        {
+            stack<BinTree*> s;
+            BinTree *p=root;
+            while(p!=NULL||!s.empty())
+            {
+                while(p!=NULL)
+                {
+                    cout<<p->data<<" ";
+                    s.push(p);
+                    p=p->lchild;
+                }
+                if(!s.empty())
+                {
+                    p=s.top();
+                    s.pop();
+                    p=p->rchild;
+                }
+            }
+        }
+        72. 主从复制
+        
+        整体上来说，复制有3个步骤：   
+        
+               (1)    master将改变记录到二进制日志(binary log)中（这些记录叫做二进制日志事件，binary log events）；
+               (2)    slave将master的binary log events拷贝到它的中继日志(relay log)；
+        
+               (3)    slave重做中继日志中的事件，将改变反映它自己的数据。
+        
+        在每个事务更新数据完成之前，master在二日志记录这些改变。MySQL将事务串行的写入二进制日志，即使事务中的语句都是交叉执行的。在事件写入二进制日志完成后，master通知存储引擎提交事务。
+        下一步就是slave将master的binary log拷贝到它自己的中继日志。首先，slave开始一个工作线程——I/O线程。I/O线程在master上打开一个普通的连接，然后开始binlog dump process。Binlog dump process从master的二进制日志中读取事件，如果已经跟上master，它会睡眠并等待master产生新的事件。I/O线程将这些事件写入中继日志。
+        SQL slave thread（SQL从线程）处理该过程的最后一步。SQL线程从中继日志读取事件，并重放其中的事件而更新slave的数据，使其与master中的数据一致。只要该线程与I/O线程保持一致，中继日志通常会位于OS的缓存中，所以中继日志的开销很小。
+        
+        http://blog.csdn.net/hguisu/article/details/7325124
+        
+        
+        73. mysql引擎区别
+        
+        MyISAM类型不支持事务处理等高级处理，而InnoDB类型支持。
+        
+        MyISAM类型的表强调的是性能，其执行数度比InnoDB类型更快，但是不提供事务支持，而InnoDB提供事务支持已经外部键等高级数据库功能。
+        
+        一般来说，MyISAM适合：
+        (1)做很多count 的计算；
+        (2)插入不频繁，查询非常频繁；
+        (3)没有事务。
+        
+        InnoDB适合：
+        (1)可靠性要求比较高，或者要求事务；
+        (2)表更新和查询都相当的频繁，并且表锁定的机会比较大的情况指定数据引擎的创建
+        
+        http://www.jb51.net/article/38004.htm
+        
+        
+        74. 静态内部类加载到了哪个区？
+        
+        方法区
+        
+        静态内部类，又叫类级内部类。
+        
+        延迟加载单例模式：类装载的时候不去初始化对象，延迟初始化到getInstance方法时初始化。
+        
+        http://www.javaweb1024.com/java/Javajichu/2015/03/25/454.html
+        
+         
+        
+        75. class文件编译后加载到了哪
+        
+        方法区
+        
+        java编译期会加载.class文件：加载的类是你需要编译类所依赖的类，如你使用了System这个类，因为在jdk里的lib已经存在了，所以你不用显示的如加载，已经在classpath下面了。
+        
+        如果你自己写的一个Class1，把它编译后，再写了个Class2。再编译Class2的时候就需要把Class1的编译文件加载到classpath中。
+        
+         
+        
+        76. web的http请求如果整体响应时间变长导致处理的请求数变少，该如何处理？
+        
+        瓶颈在哪里？
+        
+        用队列，当处理不了那么多http请求时将请求放到队列中慢慢处理
+        
+         
+        
+        77. 线程安全的单例模式
+        
+        静态内部类实现单例模式：
+        
+        public class MySingleton {  
+            //内部类  
+            private static class MySingletonHandler{  
+                private static MySingleton instance = new MySingleton();  //静态内部类在类加载是被实例化
+            }   
+              
+            private MySingleton(){}  
+            public static MySingleton getInstance() {   
+                return MySingletonHandler.instance;  
+            }  
+        } 
+        枚举数据类型实现单例模式：EnumFactory.singletonFactory.getInstance()
+        
+        public enum EnumFactory{    
+            singletonFactory;  
+            private MySingleton instance;  
+            private EnumFactory(){//枚举类的构造方法在类加载是被实例化  （在使用枚举时，构造方法会被自动调用）
+                instance = new MySingleton();  
+            }  
+               
+            public MySingleton getInstance(){  
+                return instance;  
+            }  
+        } 
+        http://blog.csdn.net/cselmu9/article/details/51366946
+        
+        78. 快速排序性能考虑
+        
+        该方法的基本思想（分治法）是：
+        
+        1．先从数列中取出一个数作为基准数。
+        
+        2．分区过程，将比这个数大的数全放到它的右边，小于或等于它的数全放到它的左边。
+        
+        3．再对左右区间重复第二步，直到各区间只有一个数。
+        
+        http://blog.csdn.net/morewindows/article/details/6684558
+        
+        http://www.cnblogs.com/luchen927/archive/2012/02/29/2368070.html
+        
+         
+        
+        79. volatile关键字用法
+        
+        volatile的应用场景是boolean的共享状态标志位，或者单例模式的双重检查锁
+        
+        http://www.cnblogs.com/my376908915/p/6757533.html
+        
+         
+        
+        80. 求表的size，或做数据统计可用什么存储引擎
+        
+        MyISAM
+        
+        一般来说，MyISAM适合：
+        (1)做很多count 的计算；
+        (2)插入不频繁，查询非常频繁；
+        (3)没有事务。
+        
+        InnoDB适合：
+        (1)可靠性要求比较高，或者要求事务；
+        (2)表更新和查询都相当的频繁，并且表锁定的机会比较大的情况指定数据引擎的创建
+        
+        http://www.jb51.net/article/38004.htm
+        
+         
+        
+        81. 读多写少可用什么引擎
+        
+        MyISAM
+        
+         
+        
+        82. 假如要统计多个表应该用什么引擎
+        
+        MyISAM
+        
+         
+        
+        83. concurrenhashmap求size是如何加锁的，如果刚求完一段后这段发生了变化该如何处理
+        
+        Put等操作都是在单个Segment中进行的，但是ConcurrentHashMap有一些操作是在多个Segment中进行，比如size操作，ConcurrentHashMap的size操作也采用了一种比较巧的方式，来尽量避免对所有的Segment都加锁。 　　
+        
+        前面我们提到了一个Segment中的有一个modCount变量，代表的是对Segment中元素的数量造成影响的操作的次数，这个值只增不减，
+        
+        size操作就是遍历了两次Segment，每次记录Segment的modCount值，然后将两次的modCount进行比较，如果相同，则表示期间没有发生过写入操作，就将原先遍历的结果返回，
+        
+        如果不相同，则把这个过程再重复做一次，
+        
+        如果再不相同，则就需要将所有的Segment都锁住，然后一个一个遍历了。
+        
+         
+        
+        ConcurrentHashMap加锁的时候根据散列值锁住了散列值锁对应的那段，因此提高了并发性能。
+        
+        ConcurrentHashMap也增加了对常用复合操作的支持，比如"若没有则添加"：putIfAbsent()，替换：replace()。这2个操作都是原子操作。
+        
+        http://www.cnblogs.com/my376908915/p/6759667.html
+        
+         
+        
+        84. 1000个苹果，请你将它放进10个箱子，如何放，使得顾客不管要多少个苹果，你总可以从10箱子里拿出若干个箱子，其苹果之和就是顾客要的苹果数？
+        
+        箱子中依次放1，2，4，8，16，32，64，128，256，489个苹果
+        
+        算法：其实就是数的二进制表示而已，你将所有的数转换成2进制后，就会发现，所有的数都是由不同位上的1组成
+        二进制表：1，10，100，1000，10000，100000。。。。。。。
+        
+         
+        
+        85. 可重入的读写锁，可重入是如何实现的？
+        
+        可重入锁又叫做递归锁。
+        
+        reentrant 锁意味着什么呢？简单来说，它有一个与锁相关的获取计数器，如果拥有锁的某个线程再次得到锁，那么获取计数器就加1，然后锁需要被释放两次才能获得真正释放。
+        
+        这相当于是模仿了synchronized中又可以嵌套一个synchronized这样的场景
+        
+        http://blog.csdn.net/johnking123/article/details/50043961
+        
+         
+        
+        86. 是否用过NIO
+        
+        Buffer和Channel是标准NIO中的核心对象（网络NIO中还有个Selector核心对象），几乎每一个IO操作中都会用到它们。
+        
+        http://www.cnblogs.com/my376908915/p/6767922.html
+        
+         
+        
+        87. java的concurrent包用过没
+        
+        java.util.concurrent包，
+        
+        AtomicI原子化，基于原子操作的循环CAS算法。
+        
+        Collections容器，ConcurrentLinkedQueue（非阻塞队列---基于原子引用的循环CAS），ConcurrentHashMap
+        
+        Locks锁，基于非阻塞队列的循环CAS + JNI的unsafe.park(false, 0L)阻塞线程
+        
+        Executor线程池。
+        
+        http://www.cnblogs.com/my376908915/p/6758278.html
+        
+         
+        
+        88. sting s=new string("abc")分别在堆栈上新建了哪些对象
+        
+        栈：sting s
+        堆：new string("abc")
+        字符串池（方法区）："abc"
+        
+        JVM中存在着一个字符串池，使用引号 创建文本的方式的String对象都会放入字符串池。可以提高效率。
+        String a="abc"; String b="abc";//这两句在字符串池 只创建一个实例对象。 
+        String a="ab"+"cd";//这一句在字符串池 创建三个实例对象。
+        new方式新建String对象则不会放入字符串池，放入堆。
+        参考： http://blog.csdn.net/lubiaopan/article/details/4776000/
+        89. java虚拟机的区域分配，各区分别存什么
+        
+        http://www.cnblogs.com/my376908915/p/6753498.html
+        
+         
+        
+        90. 分布式事务（JTA）
+        普通的jdbc事务只能针对单个connection，要实现多个数据库事务的操作，jta可以满足要求。
+        
+        jta应用程序要调用 javax.transaction.UserTransaction 接口中的方法。
+        
+        “用 JTA 界定事务，那么就需要有一个实现 javax.sql.XADataSource 、 javax.sql.XAConnection 和 javax.sql.XAResource 接口的 JDBC 驱动程序。
+        一个实现了这些接口的驱动程序将可以参与 JTA 事务。一个 XADataSource 对象就是一个 XAConnection 对象的工厂。 XAConnection s 是参与 JTA 事务的 JDBC 连接。” 
+        要使用JTA事务，必须使用XADataSource来产生数据库连接，产生的连接为一个XA连接。 
+        XA连接（javax.sql.XAConnection）和非XA（java.sql.Connection）连接的区别在于：XA可以参与JTA的事务，而且不支持自动提交。
+        Innodb存储引擎支持XA事务，通过XA事务可以支持分布式事务的实现。
+        http://blog.csdn.net/mchdba/article/details/13076803
+         
+        
+        91. threadlocal使用时注意的问题
+        
+        （ThreadLocal和Synchonized都用于解决多线程并发访问。但是ThreadLocal与synchronized有本质的区别。
+        
+        synchronized是利用锁的机制，使变量或代码块在某一时该只能被一个线程访问。
+        
+        而ThreadLocal为每一个线程都提供了变量的副本，使得每个线程在某一时间访问到的并不是同一个对象，这样就隔离了多个线程对数据的数据共享。
+        
+        而Synchronized却正好相反，它用于在多个线程间通信时能够获得数据共享）
+        
+        http://www.cnblogs.com/my376908915/p/6763210.html
+        
+         
+        
+        92. java有哪些容器
+        
+        (各种集合，tomcat也是一种容器)
+        
+         
+        
+        93. 二分查找算法
+        
+        用二分查找在已排序的数组中查看该数组是否含有一个特定的值。速度是非常快速的。
+        
+        迭代方式：
+        
+        public int BinarySearchIteration(int[] array, int key)  
+        {  
+            int begin = 0;  
+            int end = array.Length - 1;  
+            while (begin <= end)  
+            {  
+                int mid = begin + (end - begin) / 2;  
+                if (array[mid] > key)  
+                {  
+                    end = mid - 1;  
+                }  
+                else if (array[mid] < key)  
+                {  
+                    begin = mid + 1;  
+                }  
+                else  
+                {  
+                    return mid;  
+                }  
+            }  
+            return -1;  
+        } 
+        http://blog.csdn.net/beiyeqingteng/article/details/5736004
+        
+        
+        94. myisam的优点，和innodb的区别
+        
+        MyISAM
+        
+        一般来说，MyISAM适合：
+        (1)做很多count 的计算；
+        (2)插入不频繁，查询非常频繁；
+        (3)没有事务。
+        
+        InnoDB适合：
+        (1)可靠性要求比较高，或者要求事务；
+        (2)表更新和查询都相当的频繁，并且表锁定的机会比较大的情况指定数据引擎的创建
+        
+        http://www.jb51.net/article/38004.htm
+        
+        
+        95. redis能存哪些类型
+        
+        redis常用五种数据类型:string,hash,list,set,zset(sorted set).
+        
+        http://blog.csdn.net/qq_19943157/article/details/50495925
+        
+        
+        96. http协议格式，get和post的区别
+        
+        http协议格式: http://www.cnblogs.com/li0803/archive/2008/11/03/1324746.html
+        
+        get和post的区别:http://www.cnblogs.com/hyddd/archive/2009/03/31/1426026.html
+        
+        
+        97. 可重入锁中对应的wait和notify
+        
+        条件锁，http://www.cnblogs.com/my376908915/p/6758681.html
+        
+        Conditon中的await()对应Object的wait()；
+        Condition中的signal()对应Object的notify()；
+        Condition中的signalAll()对应Object的notifyAll()。
+        
+        
+        98. redis能把内存空间交换进磁盘中吗
+        
+        Redis利用swap文件将数据从内存转移到磁盘。
+        
+        http://blog.csdn.net/nvnh7553/article/details/50107971
+        
+        如果你打开虚拟内存功能，当内存用尽时, Redis就会把那些不经常使用的数据存储到磁盘。
+        如果Redis里的虚拟内存被禁了，他就会用上操作系统的虚拟内存(交换内存)，同时性能急剧下降。
+        你可以配置maxmemory参数，来避免Redis默认再分配更多的内存。
+        
+        http://www.dewen.net.cn/q/242
+        
+        
+        99. java线程池中基于缓存和基于定长的两种线程池，当请求太多时分别是如何处理的？
+        
+        Java自带的几种线程池：
+        
+        1、newCachedThreadPool 创建一个可缓存的线程池。
+        
+        这种类型的线程池特点是：
+        
+        a).工作线程的创建数量几乎没有限制(其实也有限制的,数目为Interger. MAX_VALUE), 这样可灵活的往线程池中添加线程。
+        
+        b).如果长时间没有往线程池中提交任务，即如果工作线程空闲了指定的时间(默认为1分钟)，则该工作线程将自动终止。终止后，如果你又提交了新的任务，则线程池重新创建一个工作线程。
+        
+        2、newFixedThreadPool 创建一个指定工作线程数量的线程池。
+        
+        每当提交一个任务就创建一个工作线程，如果工作线程数量达到线程池初始的最大数，则将提交的任务存入到池队列中。
+        
+        3、newSingleThreadExecutor 创建一个单线程化的Executor，即只创建唯一的工作者线程来执行任务，如果这个线程异常结束，会有另一个取代它，保证顺序执行(我觉得这点是它的特色)。
+        
+        单工作线程最大的特点是可保证顺序地执行各个任务，并且在任意给定的时间不会有多个线程是活动的 。
+        
+        4、newScheduleThreadPool 创建一个定长的线程池，而且支持定时的以及周期性的任务执行，类似于Timer。
+        
+        
+        100. synchronized加在方法上用的什么锁
+        方法对应的实例对象。
+        
+         
+        
+        101. 可重入锁中的lock和trylock的区别
+        
+        ReentrantLock获取锁定与三种方式：
+            a)  lock(), 如果获取了锁立即返回，如果别的线程持有锁，当前线程则一直处于休眠状态，直到获取锁
+        
+            b) tryLock(), 如果获取了锁立即返回true，如果别的线程正持有锁，立即返回false；
+        
+            c) tryLock(long timeout,TimeUnit unit)，   如果获取了锁定立即返回true，如果别的线程正持有锁，会等待参数给定的时间，在等待的过程中，如果获取了锁定，就返回true，如果等待超时，返回false；
+        
+            d) lockInterruptibly:如果获取了锁定立即返回，如果没有获取锁定，当前线程处于休眠状态，直到获得锁定，或者当前线程被别的线程中断
+        
+        http://www.cnblogs.com/my376908915/p/6758681.html
+        
+        
+        102. innodb对一行数据的读会加锁吗？
+        
+        对于insert、update、delete，InnoDB会自动给涉及的数据加排他锁（X）；
+        
+        对于一般的Select语句，InnoDB不会加任何锁，事务可以通过以下语句给显示加共享锁或排他锁。
+        
+        共享锁：select * from table_name where .....lock in share mode
+        
+        排他锁：select * from table_name where .....for update
+        
+        http://www.2cto.com/database/201508/429967.html
+        
+        
+        103. redis做缓存是分布式存的？不同的服务器上存的数据是否重复？guava cache呢？是否重复？不同的机器存的数据不同
+        
+        由于redis是单点，项目中需要使用，必须自己实现分布式。
+        
+        分布式实现：通过key做一致性哈希，实现key对应redis结点的分布。
+        
+        http://www.open-open.com/lib/view/open1384603154712.html
+        
+        Mysql是适合海量数据存储的，然后通过Memcached将一些常用的数据进行缓存，加快访问速度。
+        
+        当数据量不断的增大的时候，进行切表，拆表的，Memcached也需要不断的跟着扩容，Memcached和Mysql的数据一致性的问题，Memcached数据命中率低或者Down机，大量的访问就会穿透到数据库，这时候Mysql可能会无法支撑。
+        
+                  Redis使用最佳方式是全部数据in-memory。
+        
+                  Redis更多场景是作为Memcached的替代者来使用。
+        
+                 当需要除key/value之外的更多数据类型支持时，使用Redis更合适。
+        
+                 当存储的数据不能被剔除时，使用Redis更合适。
+        
+        http://blog.csdn.net/bemavery/article/details/47061663
+        
+        
+        104. 用awk统计一个ip文件中top10
+        
+        cat File.log | awk -F ',' '{print $8}' | sort | uniq -c | sort -k1nr | head -10
+        
+         
+        
+        Linux awk是一个强大的文本分析工具，相对于grep的查找，sed的编辑，awk在其对数据分析并生成报告时，显得尤为强大。http://www.cnblogs.com/ggjucheng/archive/2013/01/13/2858470.html
+        
+        简单来说awk就是把文件逐行的读入，以空格为默认分隔符将每行切片，切开的部分再进行各种分析处理。http://man.linuxde.net/awk
+        
+        https://yq.aliyun.com/ziliao/73055
+        
+        
+        105. 对表做统计时可直接看schema info信息，即查看表的系统信息
+        
+        MySQL中有一个名为 information_schema 的数据库，在该库中有一个 TABLES 表，这个表主要字段分别是：
+        
+        TABLE_SCHEMA : 数据库名
+        
+        TABLE_NAME：表名
+        
+        ENGINE：所使用的存储引擎
+        
+        TABLES_ROWS：记录数
+        
+        DATA_LENGTH：数据大小
+        
+        INDEX_LENGTH：索引大小
+        
+         
+        
+        use information_schema;
+        select table_name,table_rows from tables
+        where TABLE_SCHEMA = '数据库名'
+        order by table_rows desc;
+        查询出来的是每张表的行数
+        
+        http://help.wopus.org/mysql-manage/607.html
+        
+        
+        106. mysql目前用的版本
+        
+        据说5.0.x的版本比较稳定，兼容比较好，我现在安装的5.1.63
+        
+        Mysql查看版本号的五种方式介绍：http://www.jb51.net/article/36370.htm
+        
+        
+        107. 公司经验丰富的人给了什么帮助？(一般boss面会问这些)
+        
+        具体技术的点拨，思考问题的方式，解决问题的方式。
+        
+        
+        108. 自己相对于一样的应届生有什么优势
+        
+        经验丰富
+        
+        
+        109. 自己的好的总结习惯，给自己今后的工作带了什么帮助，举例为证
+        
+        技术总结分享，文档归档。
+        
+         
+        
+        110. 原子类，线程安全的对象，异常的处理方式
+        JUC出现之后，这些原子操作 基于JNI提供了新的实现，
+        
+        比如AtomicInteger,AtomicLong,AtomicBoolean,AtomicReference,AtomicIntegerArray/AtomicLongArray/AtomicReferenceArray；
+        
+        这些操作中提供一些原子化操作，比如incrementAndGet（相当于i++），compareAndSet（安全赋值）等，直接读源代码也很容易懂。
+        
+        www.cnblogs.com/my376908915/p/6758415.html
+        
+         
+        
+        111. 4亿个int数，如何找出重复的数
+        
+        大数据处理算法一：Bitmap算法
+        
+        核心思想即通过将一个数作为下标（index）来索引一个bit表示一个数是否存在，排序时的时间复杂度为O(N)，需要的额外空间的复杂度O(N/8)，支持整个int范围（正负数都支持）的算法
+        
+        http://www.open-open.com/lib/view/open1430902831226.html
+        
+        
+        112. 4亿个url，找出其中重复的（考虑内存不够，通过hash算法，将url分配到1000个文件中，不同的文件间肯定就不会重复了，再分别找出重复的）
+        
+        hash算法：   H（url）出一个整数后，取1000的余数，分割到1000个文件中，余数即为文件名。
+        
+        读入每个小文件，进内存HashMap（url，Counts）。
+        
+        遍历EntrySets，即Counts 〉1的url
+        
+        hash算法原理详解 ：http://blog.csdn.net/tanggao1314/article/details/51457585
+        
+        
+        有1万个数组，每个数组有1000个整数，每个数组都是降序的，从中找出最大的10个数。
+        
+        每个数组取出前10个，堆排序，或优先队列。
+        
+         
+        
+        113. LinkedHashmap的底层实现
+        
+        LinkedHashMap实现与HashMap的不同之处在于，LinkedHashMap维护着一个运行于所有条目的双向链接列表。此链接列表定义了迭代顺序，该迭代顺序可以是插入顺序或者是访问顺序。
+        
+        对于LinkedHashMap而言，它继承与HashMap、底层使用哈希表与双向链表来保存所有元素。其基本操作与父类HashMap相似，它通过重写父类相关的方法，来实现自己的链接列表特性。
+        
+        Entry除了保存当前对象的引用外，还保存了其上一个元素before和下一个元素after的引用，从而在哈希表的基础上又构成了双向链接列表。
+        
+        http://zhangshixi.iteye.com/blog/673789
+        
+        
+        114. 类序列化时类的版本号的用途，如果没有指定一个版本号，系统是怎么处理的？如果加了字段会怎么样？
+        
+        如果没有显式声明序列号，那么在程序编译时会自己生成这个版本序列号。
+        
+        如果加了字段，更改了实体类的时候又会重新生成一个序列号。
+        
+        运行程序，就会报错：InvalidClassException
+        
+        http://blog.sina.com.cn/s/blog_7f73e06d0100u52c.html
+        
+        
+        115. Override和Overload的区别，分别用在什么场景
+        
+        方法重载（overload），参数不同。
+        
+        方法覆盖（override），方法内容不同。用在子类
+        
+        http://blog.csdn.net/zhouhong1026/article/details/8232350
+        
+        
+        116. java的反射是如何实现的
+        
+        反射机制其实就是指程序在运行的时候能够获取自身的信息。
+        
+        如果知道一个类的名称/或者它的一个实例对象， 就能把这个类的所有方法和变量的信息(方法名，变量名，方法，修饰符，类型，方法参数等等所有信息)找出来。
+        
+        如果明确知道这个类里的某个方法名+参数个数 类型，还能通过传递参数来运行那个类里的那个方法，这就是反射。
+        
+        尽管Java不是一种动态语言，但它却有一个非常突出的动态机制：Reflection。它使我们可以于运行时加载、探知、使用编译期间完全未知的 classes。
+        
+        换句话说，Java程序可以加载一个运行时才得知名称的class，获悉其完整构造（但不包括methods定义），并生成其对象实体、 或对其fields设值、或唤起其methods。既一种“看透class”的能力。
+        
+        http://www.tuicool.com/articles/zuIN7r
+        
+        http://www.cnblogs.com/my376908915/p/6752707.html
+        
+        http://blog.csdn.net/liujiahan629629/article/details/18013523
+        
+         
+        
+        117.HashMap  HashTable的区别
+        
+        http://www.importnew.com/7010.html
+        
+        118.Map集合的四种遍历方式
+        
+        http://www.cnblogs.com/blest-future/p/4628871.html
+        
+        119.HashMap如何实现
+        
+        Hash算法-〉数组，
+        
+        + 处理冲突-〉链表法
+        
+        120.多线程循环删除List数组容器里面元素，会ConcurrentModificationException
+        
+        把List数组转换成Iterator进行迭代删除，一点问题都没有：listA.iterator().remove(); Iterator进行循环操作，然后删除，是很安全的。
+        
+        121.线程间共享数据的方式
+        
+        http://www.cnblogs.com/my376908915/p/6756895.html
+        
+        122.Spring MVC页面渲染的几种方式
+        
+        http://blog.csdn.net/suifeng3051/article/details/51648360
+        
+        123.Ioc和AOP的理解和源码
+        
+        AOP基于什么设计模式实现的？具体说下cglib代理和jdk代理的区别，他们是怎么实现动态代理的，核心类和核心方法是什么
+        
+        http://www.cnblogs.com/my376908915/p/6782604.html
+        
+        124.spring bean的几种状态
+        
+        用的最多的还是singleton单态，prototype原型多态。
+        
+        125.spring的缓存优化是怎么做的？如何清缓存，缓存哪里用到了，用他做什么？
+        
+        http://blog.csdn.net/a494303877/article/details/53780597
+        
+        http://blog.csdn.net/dlf123321/article/details/51382666
+        
+        126.使用spring初始化需要加载的东西，
+        
+        bean.dispatcherServlet,加载Html,spring的配置文件
+        
+        127.如果redis缓存宕掉了怎么办
+        
+        https://baijiahao.baidu.com/po/feed/share?wfr=spider&for=pc&context=%7B%22sourceFrom%22%3A%22bjh%22%2C%22nid%22%3A%22news_3562062748706618586%22%7D
+        
+        128.java中异常机制
+        
+        Throwable是Error和Exception的父类，
+        Error一般是指JVM抛出的错误，不需要捕获，Exception是程序错误，需要捕获处理；
+        129.有10亿条文本，找出前一万条重复率高的
+        
+        先Hash算法分割到1000个文件中去；HashMap（文本，counts）；堆排序。
+        
+        BitMap算法：使用hash计算并存储次数，然后遍历一次找出top10；
+        
+        
+        
+        
+        
+        130.对一千万条数据排序，你认为最好的方式是什么
+        分块查找，堆排序。
+        BitMap算法。是否有重复。申请长度为一千万位的位向量bit[10000000]，所有位设置为0，顺序读取待排序文件，每读入一个数i，便将bit[i]置为1。当所有数据读入完成，便对bit做从头到尾的遍历，如果bit[i]=1，则输出i到文件，当遍历完成，重复的数据被输出。
+        131.10w行数据，每行一个单词，统计出现次数出现最多的前100个。
+        
+        （1）可以使用小根堆；
+        
+        （2）在linux中实现：cat words.txt | sort | uniq -c | sort -k1,1nr | head -10
+        
+        uniq -c: 
+         显示唯一的行，并在每行 行首 加上本行在文件中出现的次数
+        
+        sort -k1,1nr:  按照第一个字段，数值排序，且为逆序
+        132.一个文本文件，给你一个单词，判断单词是否出现。
+        
+        grep -wq "fail" 123.txt && echo "no"||echo "yes"
+        -w 精确匹配
+        http://www.2cto.com/os/201411/348541.html
+        
+
+            redis能把内存空间交换进磁盘中吗(这个应该是可以的，但是那个面试官非跟我说不可以)
+            java线程池中基于缓存和基于定长的两种线程池，当请求太多时分别是如何处理的？定长的事用的队列，如果队列也满了呢？交换进磁盘？基于缓存的线程池解决方法呢？
+            synchronized加在方法上用的什么锁
+            可重入锁中的lock和trylock的区别
+            innodb对一行数据的读会枷锁吗？不枷锁，读实际读的是副本
+            redis做缓存是分布式存的？不同的服务器上存的数据是否重复？guava cache呢？是否重复？不同的机器存的数据不同
+            用awk统计一个ip文件中top10
+            对表做统计时可直接看schema info信息，即查看表的系统信息
+            mysql目前用的版本
+            公司经验丰富的人给了什么帮助？(一般boss面会问这些)
+            自己相对于一样的应届生有什么优势
+            自己的好的总结习惯给自己今后的工作带了什么帮助，举例为证
+            原子类，线程安全的对象，异常的处理方式
+            4亿个int数，如何找出重复的数（用hash方法，建一个2的32次方个bit的hash数组，每取一个int数，可hash下2的32次方找到它在hash数组中的位置，然后将bit置1表示已存在）
+            4亿个url，找出其中重复的（考虑内存不够，通过hash算法，将url分配到1000个文件中，不同的文件间肯定就不会重复了，再分别找出重复的）
+            有1万个数组，每个数组有1000个整数，每个数组都是降序的，从中找出最大的N个数，N<1000
+            
+            LinkedHashmap的底层实现
+            类序列化时类的版本号的用途，如果没有指定一个版本号，系统是怎么处理的？如果加了字段会怎么样？
+            Override和Overload的区别，分别用在什么场景
+            java的反射是如何实现的
+            架构之路学习思路，学习方向！面试阿里必备技能
+            1.开源框架解析
+            2.架构师巩基
+            3.高性能架构
+            4.微服务架构
+            5.团队协作开发
+            6.B2C商城项目
+            7.设计模式
     
-    HashMap 在扩容时, 对读写操作有什么特殊处理?
+###8.5 mysql面试题
+        https://blog.csdn.net/w372426096/article/details/83511008   (比较全面)
+        
+        https://blog.csdn.net/w372426096/article/details/83061395
+        https://blog.csdn.net/w372426096/article/details/82621532
+        https://blog.csdn.net/w372426096/article/details/81281755
+        https://blog.csdn.net/w372426096/article/details/80968191
+        https://blog.csdn.net/w372426096/article/details/80968221
+        
+        mysql目前用的版本？
+            5.7.21；目前最高5.7.*
+        
+        left join，right join，inner join？
+            left join(左连接) 返回包括左表中的所有记录和右表中连接字段相等的记录 
+            right join(右连接) 返回包括右表中的所有记录和左表中连接字段相等的记录
+            左连接和右连接很像只是顺序问题。
+            inner join(等值连接、内连接) 只返回两个表中连接字段相等的行
+        
+        MySQL 分页查询语句？
+            select * from table limit (start-1)*limit,limit; 其中start是页码，limit是每页显示的条数
+        
+        脏读、幻读、不可重复读?
+            https://blog.csdn.net/w372426096/article/details/80798062
+            
+        数据库的几大范式?
+            第一范式----数据库中的表(所有字段值)都是不可分割的原子数据项。
+            第二范式----数据库表中的每一列都和主键相关，而不能只和主键的某一部分相关。也就是说 一个表中只能只能包含一个，不能把多种数据
+                保存在同一个表中。
+            第三范式----数据库表中每一列数据都和主键直接相关，不能间接相关。
+        数据库常见的命令?
+            https://www.cnblogs.com/zhouzetian/p/6429181.html
+        
+        注意truncat,drop（DDL）,delete(操作语句)区别
+        
+        DDL、DML、DCL分别指什么？
+            一、DDL :数据定义语言，用于定义和管理 SQL 数据库中的所有对象的语言
+                1.CREATE - to create objects in the database 创建
+                2.ALTER - alters the structure of the database 修改
+                3.DROP - delete objects from the database 删除
+                4.TRUNCATE - remove all records from a table, including all spaces allocated for the records are removed
+                　　Truncate table 表名 速度快,而且效率高,因为:
+                　　TRUNCATE TABLE 在功能上与不带 WHERE 子句的 DELETE 语句相同：二者均删除表中的全部行。但 TRUNCATE TABLE 比 DELETE 速度快，且使用的系统和事务日志资源少。
+                　　DELETE 语句每次删除一行，并在事务日志中为所删除的每行记录一项。TRUNCATE TABLE 通过释放存储表数据所用的数据页来删除数据，并且只在事务日志中记录页的释放。
+                　　TRUNCATE TABLE 删除表中的所有行，但表结构及其列、约束、索引等保持不变。新行标识所用的计数值重置为该列的种子。如果想保留标识计数值，请改用 DELETE。如果要删除表定义及其数据，请使用 DROP TABLE 语句。
+                　　对于由 FOREIGN KEY 约束引用的表，不能使用 TRUNCATE TABLE，而应使用不带 WHERE 子句的 DELETE 语句。由于 TRUNCATE TABLE 不记录在日志中，所以它不能激活触发器。
+                　　TRUNCATE TABLE 不能用于参与了索引视图的表。
+                5.COMMENT - add comments to the data dictionary 注释
+                6.GRANT - gives user's access privileges to database 授权
+                7.REVOKE - withdraw access privileges given with the GRANT command 收回已经授予的权限
+            
+            二、DML:数据操作语言，SQL中处理数据等操作统称为数据操纵语言
+                1.SELECT - retrieve data from the a database 查询
+                2.INSERT - insert data into a table 添加
+                3.UPDATE - updates existing data within a table 更新
+                4.DELETE - deletes all records from a table, the space for the records remain 删除
+                5.CALL - call a PL/SQL or Java subprogram
+                6.EXPLAIN PLAN - explain access path to data
+                7.LOCK TABLE - control concurrency 锁，用于控制并发
+            
+            三、DCL:数据控制语言，用来授予或回收访问数据库的某种特权，并控制数据库操纵事务发生的时间及效果，对数据库实行监视等
+                1.COMMIT - save work done 提交
+                2.SAVEPOINT - identify a point in a transaction to which you can later roll back 保存点
+                3.ROLLBACK - restore database to original since the last COMMIT 回滚
+                4.SET TRANSACTION - Change transaction options like what rollback segment to use 设置当前事务的特性，它对后面的事务没有影响．
+            
+        SQL的整个解析、执行过程原理；
+        
+        SQL行转列
+        
+        sql语句各种条件的执行顺序，如select， where， order by， group by
+            写的顺序：select ... from... where.... group by... having... order by..
+            执行顺序：from... where...group by... having.... select ... order by...
+        
+        查看执行计划
+        
+    索引
+        
+        索引类别（B+树索引、全文索引、哈希索引）、索引的原理？为什么要用 B+tree作为MySQL索引的数据结构？
+            1.索引的作用：提高数据查询效率
+            2.常见索引模型：哈希表、有序数组、搜索树
+            3.哈希表：键 - 值(key - value)。
+            4.哈希思路：把值放在数组里，用一个哈希函数把key换算成一个确定的位置，然后把value放在数组的这个位置
+            5.哈希冲突的处理办法：链表
+            6.哈希表适用场景：只有等值查询的场景（NOSQL）
+            7.有序数组：按顺序存储。查询用二分法就可以快速查询，时间复杂度是：O(log(N))
+            8.有序数组查询效率高，更新效率低
+            9.有序数组的适用场景：静态存储引擎。
+            10.二叉搜索树：每个节点的左儿子小于父节点，父节点又小于右儿子
+            11.二叉搜索树：查询时间复杂度O(log(N))，更新时间复杂度O(log(N))
+            12.数据库存储大多不适用二叉树，因为树高过高(会查磁盘比查内存慢)，会适用N叉树
+            13.InnoDB中的索引模型：B+Tree
+            14.索引类型：主键索引、非主键索引
+            主键索引的叶子节点存的是整行的数据(聚簇索引)，非主键索引的叶子节点内容是主键的值(二级索引)
+            15.主键索引和普通索引的区别：主键索引只要搜索ID这个B+Tree即可拿到数据。普通索引先搜索索引拿到主键值，再到主键索引树搜索一次(回表)
+            16.一个数据页满了，按照B+Tree算法，新增加一个数据页，叫做页分裂，会导致性能下降。空间利用率降低大概50%。当相邻的两个数据页利用率很低的时候会做数据页合并，合并的过程是分裂过程的逆过程。
+            17.从性能和存储空间方面考量，自增主键往往是更合理的选择。
+        
+        $$聚集索引与非聚集索引的区别？
+            根本区别
+                聚集索引和非聚集索引的根本区别是:表记录的排列顺序和与索引的排列顺序是否一致。
+                     聚集索引
+                        聚集索引表记录的排列顺序和索引的排列顺序一致，所以查询效率快，只要找到第一个索引值记录，其余就连续性的记录在物理也一样连续存放。
+                        聚集索引对应的缺点就是修改慢，因为为了保证表中记录的物理和索引顺序一致，在记录插入的时候，会对数据页重新排序。
+                非聚集索引
+                    非聚集索引制定了表中记录的逻辑顺序，但是记录的物理和索引不一定一致，两种索引都采用B+树结构，非聚集索引的叶子层并不和实际数据页相重叠，
+                    而采用叶子层包含一个指向表中的记录在数据页中的指针方式。非聚集索引层次多，不会造成数据重排。
+        
+        SQL 索引的顺序，字段的顺序？最左原则?
+            回表：回到主键索引树搜索的过程，称为回表
+            覆盖索引：某索引已经覆盖了查询需求，称为覆盖索引，例如：select ID from T where k between 3 and 5
+                在引擎内部使用覆盖索引在索引K上其实读了三个记录，R3~R5(对应的索引k上的记录项)，但对于MySQL的Server层来说，它就是找引擎拿到了两条记录，因此MySQL认为扫描行数是2
+            最左前缀原则：B+Tree这种索引结构，可以利用索引的"最左前缀"来定位记录
+                只要满足最左前缀，就可以利用索引来加速检索。
+            最左前缀可以是联合索引的最左N个字段，也可以是字符串索引的最左M个字符
+            第一原则是：如果通过调整顺序，可以少维护一个索引，那么这个顺序往往就是需要优先考虑采用的。
+            索引下推：在MySQL5.6之前，只能从根据最左前缀查询到ID开始一个个回表。到主键索引上找出数据行，再对比字段值。
+            MySQL5.6引入的索引下推优化，可以在索引遍历过程中，对索引中包含的字段先做判断，直接过滤掉不满足条件的记录，减少回表次数。
+        
+    order by 原理
+        1.MySQL会为每个线程分配一个内存（sort_buffer）用于排序该内存大小为sort_buffer_size
+            1>如果排序的数据量小于sort_buffer_size，排序将会在内存中完成
+            2>如果排序数据量很大，内存中无法存下这么多数据，则会使用磁盘临时文件来辅助排序，也称外部排序
+            3>在使用外部排序时，MySQL会分成好几份单独的临时文件用来存放排序后的数据，然后在将这些文件合并成一个大文件
+        2.mysql会通过遍历索引将满足条件的数据读取到sort_buffer，并且按照排序字段进行快速排序
+            1>如果查询的字段不包含在辅助索引中，需要按照辅助索引记录的主键返回聚集索引取出所需字段
+            2>该方式会造成随机IO，在MySQL5.6提供了MRR的机制，会将辅助索引匹配记录的主键取出来在内存中进行排序，然后在回表
+            3>按照情况建立联合索引来避免排序所带来的性能损耗，允许的情况下也可以建立覆盖索引来避免回表
+        
+        全字段排序
+            1.通过索引将所需的字段全部读取到sort_buffer中
+            2.按照排序字段进行排序
+            3.将结果集返回给客户端
+            缺点：
+            1.造成sort_buffer中存放不下很多数据，因为除了排序字段还存放其他字段，对sort_buffer的利用效率不高
+            2.当所需排序数据量很大时，会有很多的临时文件，排序性能也会很差
+            优点：MySQL认为内存足够大时会优先选择全字段排序，因为这种方式比rowid 排序避免了一次回表操作
+            
+        rowid排序
+            1.通过控制排序的行数据的长度来让sort_buffer中尽可能多的存放数据，max_length_for_sort_data
+            2.只将需要排序的字段和主键读取到sort_buffer中，并按照排序字段进行排序
+            3.按照排序后的顺序，取id进行回表取出想要获取的数据
+            4.将结果集返回给客户端
+            优点：更好的利用内存的sort_buffer进行排序操作，尽量减少对磁盘的访问
+            缺点：回表的操作是随机IO，会造成大量的随机读，不一定就比全字段排序减少对磁盘的访问
+            3.按照排序的结果返回客户所取行数
+        
+        MySQL 索引使用的注意事项
+        遇到过索引失效的情况没，什么时候可能会出现，如何解决？
+        索引失效的场景
+        
+    优化：
+        常见的数据库优化方案？
+        第一阶段 优化sql和索引
+            这一步成本最低啊，不需要加什么中间件。你没经过索引优化和SQL优化。
+            步骤大概
+            用慢查询日志定位执行效率低的 SQL语句
+            用 explain分析 SQL的执行计划
+            确定问题，采取相应的优化措施，建立索引啊，等
+            
+        第二阶段 搭建缓存
+            在优化sql无法解决问题的情况下，才考虑搭建缓存。毕竟你使用缓存的目的，就是将复杂的、耗时的、不常变的执行结果缓存起来，降低数据库的资源消耗。
+            这里需要注意的是:搭建缓存后，系统的复杂性增加了。你需要考虑很多问题，比如:
+            缓存和数据库一致性问题？(比如是更缓存，还是删缓存),这点可以看我的一篇文章《数据库和缓存双写一致性方案解析》。
+            缓存击穿、缓存穿透、缓存雪崩问题如何解决？是否有做缓存预热的必要。不过我猜，大部分中小公司应该都没考虑。这点可以看我的另一篇《分布式之redis复习精讲》
+        
+        第三阶段 读写分离
+            缓存也搞不定的情况下，搞主从复制，上读写分离。在应用层，区分读写请求。或者利用现成的中间件 mycat或者 altas等做读写分离。
+            需要注意的是,只要你敢说你用了主从架构，有三个问题，你要准备:
+            1.主从的好处？
+                回答:实现数据库备份，实现数据库负载均衡，提高数据库可用性
+            2.主从的原理?
+                回答:如图所示（图片不是自己画的，偷懒了）
+                主库有一个 logdump线程，将 binlog传给从库
+                从库有两个线程，一个I/O线程，一个SQL线程，I/O线程读取主库传过来的 binlog内容并写入到 relay log,SQL线程从 relay log里面读取内容，
+                写入从库的数据库。
+            3.如何解决主从一致性?
+            
+                回答:这个问题，我不建议在数据库层面解决该问题。根据 CAP 定理，主从架构本来就是一种高可用架构，是无法满足一致性的。
+                 哪怕你采用同步复制模式或者半同步复制模式，都是弱一致性，并不是强一致性。所以，推荐还是利用缓存，来解决该问题。
+                
+                步骤如下:
+                
+                自己通过测试，计算主从延迟时间，建议mysql版本为5.7以后，因为mysql自5.7开始，多线程复制功能比较完善，一般能保证延迟在1s内。
+                不过话说回来，mysql现在都出到8.x了，还有人用5.x的版本么。
+                
+                数据库的写操作，先写数据库，再写cache，但是有效期很短，就比主从延时的时间稍微长一点。
+                读请求的时候，先读缓存，缓存存在则直接返回。如果缓存不存在(这时主从同步已经完成)，再读数据库。
+            
+        第四阶段 利用分区表
+        
+            说句实在话，你们面试的时候，其实可以略过这个阶段。因为很多互联网公司都不建议用分区表，我自己也不太建议用分区表，采用这个分区表，坑太多。
+            这里引用一下其他文章的回答:
+            
+            什么是mysql的分区表？
+            
+            回答：所有数据还在一个表中，但物理存储根据一定的规则放在不同的文件中。这个是mysql支持的功能，业务代码不需要改动，
+            但是sql语句需要改动，sql条件需要带上分区的列。
+            
+            缺点
+            分区键设计不太灵活，如果不走分区键，很容易出现全表锁
+            在分区表使用 ALTER TABLE … ORDER BY，只能在每个分区内进行 orderby。
+            分区表的分区键创建索引，那么这个索引也将被分区。分区键没有全局索引一说。
+            自己分库分表，自己掌控业务场景与访问模式，可控。分区表，研发写了一个sql，都不确定该去哪个分区查，不太可控。 …不列举了，不推荐
+        
+        第五阶段 垂直拆分
+            上面四个阶段都没搞定，就来垂直拆分了。垂直拆分的复杂度还是比水平拆分小的。将你的表，按模块拆分为不同的小表。
+            大家应该都看过《大型网站架构演变之路》，这种类型的文章或者书籍，基本都有提到这一阶段。
+            
+            如果你有幸能够在什么运营商、银行等公司上班，你会发现他们一个表，几百个字段都是很常见的事情。所以，应该要进行拆分，拆分原则一般是如下三点:
+                把不常用的字段单独放在一张表。
+                把常用的字段单独放一张表
+                经常组合查询的列放在一张表中（联合索引）。
+        
+        第六阶段 水平拆分
+            OK,水平拆分是最麻烦的一个阶段，拆分后会有很多的问题，我再强调一次，水平拆分一定是最最最最后的选择。从某种意义上，
+            我觉得还不如垂直拆分。因为你用垂直拆分，分成不同模块后，发现单模块的压力过大，你完全可以给该模块单独做优化，
+            例如提高该模块的机器配置等。如果是水平拆分，拆成两张表，代码需要变动，然后发现两张表还不行，再变代码，再拆成三张表的？
+            水平拆分后，各模块间耦合性太强，成本太大，慎重。
+            
+        在你的项目中数据库如何进行优化的？
+        `慢sql优化，缓存，读写分离，设计表时候垂直拆分，终极水平拆分
+        
+        SQL 优化的常见方法有哪些？
+        
+        SQL逻辑相同,性能差异较大的,大概有以下几类:
+            一.字段发生了转换,导致本该使用索引而没有用到索引
+                1.条件字段函数操作
+                2.隐式类型转换
+                3.隐式字符编码转换
+                (如果驱动表的字符集比被驱动表得字符集小，关联列就能用到索引,如果更大,需要发生隐式编码转换,则不能用到索引,latin<gbk<utf8<utf8mb4)
+        
+            二.嵌套循环,驱动表与被驱动表选择错误
+                1.连接列上没有索引,导致大表驱动小表,或者小表驱动大表(但是大表走的是全表扫描) --连接列上建立索引
+                2.连接列上虽然有索引,但是驱动表任然选择错误。--通过straight_join强制选择关联表顺序
+                3.子查询导致先执行外表在执行子查询,也是驱动表与被驱动表选择错误。
+                --可以考虑把子查询改写为内连接,或者改写内联视图(子查询放在from后组成一个临时表,在于其他表进行关联)
+                4.只需要内连接的语句,但是写成了左连接或者右连接。比如select * from t left join b on t.id=b.id where b.name='abc'驱动表被固定,大概率会扫描更多的行,导致效率降低.
+                --根据业务情况或sql情况,把左连接或者右连接改写为内连接
+        
+            三.索引选择不同,造成性能差异较大
+                1.select * from t where aid= and create_name>'' order by id limit 1;
+                选择走id索引或者选择走(aid,create_time)索引,性能差异较大.结果集都有可能不一致
+                --这个可以通过where条件过滤的值多少来大概判断,该走哪个索引
+            
+            四.其它一些因素
+                1.比如之前学习到的是否有MDL X锁
+                2.innodb_buffer_pool设置得太小,innodb_io_capacity设置得太小,刷脏速度跟不上
+                3.是否是对表做了DML语句之后,马上做select,导致change buffer收益不高
+                4.是否有数据空洞
+                5.select选取的数据是否在buffer_pool中
+                6.硬件原因,资源抢占
+                原因多种多样,还需要慢慢补充。
+        
+        explain命令？
+            https://blog.csdn.net/w372426096/article/details/82421378
+        
+        对于SQL慢查询的优化？（主要是从查询语句和数据库表设计两个方面来考虑，查询语句方面可以增加索引，增加查询筛选的限制条件；
+        数据库表设计的时候可以拆分表，设计得更细粒度。但是后来才发现面试官想要的就是查询大量数据的慢查询问题的优化。）
+        
+        MySQL遇到的死锁问题、如何排查与解决？
+        日志
+        
+        limit 20000 加载很慢怎么解决？
+         https://uule.iteye.com/blog/2422189
+        
+        select xx from xx where xx and xx order by xx limit xx； 如何优化这个（看explain）
+        事务：
+        
+        mysql是如何实现事务的
+        MySQL 事务特性及特性和隔离级别
+            1、事务的特性：原子性、一致性、隔离性、持久性
+            2、多事务同时执行的时候，可能会出现的问题：脏读、不可重复读、幻读
+            3、事务隔离级别：读未提交、读提交（Oracle默认）、可重复读（Mysql默认）、串行化
+            4、不同事务隔离级别的区别：
+                读未提交：一个事务还未提交，它所做的变更就可以被别的事务看到
+                读提交：一个事务提交之后，它所做的变更才可以被别的事务看到
+                可重复读：一个事务执行过程中看到的数据是一致的。未提交的更改对其他事务是不可见的
+                串行化：对应一个记录会加读写锁，出现冲突的时候，后访问的事务必须等前一个事务执行完成才能继续执行
+            5、配置方法：启动参数transaction-isolation
+            6、事务隔离的实现：每条记录在更新的时候都会同时记录一条回滚操作。同一条记录在系统中可以存在多个版本，这就是数据库的多版本并发控制（MVCC）。
+        
+        如何避免长事务对业务的影响？
+        
+        首先，从应用开发端来看：
+            确认是否使用了 set autocommit=0。这个确认工作可以在测试环境中开展，把 MySQL 的 general_log 开起来，然后随便跑一个业务逻辑，
+            通过 general_log 的日志来确认。一般框架如果会设置这个值，也就会提供参数来控制行为，你的目标就是把它改成 1。
+            
+            确认是否有不必要的只读事务。有些框架会习惯不管什么语句先用 begin/commit 框起来。我见过有些是业务并没有这个需要，但是也把好
+            几个 select 语句放到了事务中。这种只读事务可以去掉。
+            
+            业务连接数据库的时候，根据业务本身的预估，通过 SET MAX_EXECUTION_TIME 命令，来控制每个语句执行的最长时间，避免单个语句意外
+            执行太长时间。（为什么会意外？在后续的文章中会提到这类案例）
+        
+        其次，从数据库端来看：(事务隔离相关)
+            1.innodb支持RC和RR隔离级别实现是用的一致性视图(consistent read view)
+            2.事务在启动时会拍一个快照,这个快照是基于整个库的.
+                基于整个库的意思就是说一个事务内,整个库的修改对于该事务都是不可见的(对于快照读的情况)
+                如果在事务内select t表,另外的事务执行了DDL t表,根据发生时间,要嘛锁住要嘛报错(参考第六章)
+            
+            3.事务是如何实现的MVCC呢?
+                (1)每个事务都有一个事务ID,叫做transaction id(严格递增)
+                (2)事务在启动时,找到已提交的最大事务ID记为up_limit_id。
+                (3)事务在更新一条语句时,比如id=1改为了id=2.会把id=1和该行之前的row trx_id写到undo log里,
+                    并且在数据页上把id的值改为2,并且把修改这条语句的transaction id记在该行行头
+                (4)再定一个规矩,一个事务要查看一条数据时,必须先用该事务的up_limit_id与该行的transaction id做比对,
+                如果up_limit_id>=transaction id,那么可以看.如果up_limit_id<transaction id,则只能去undo log里去取。去undo log
+                查找数据的时候,也需要做比对,必须up_limit_id>transaction id,才返回数据
+            
+            4.什么是当前读,由于当前读都是先读后写,只能读当前的值,所以为当前读.会更新事务内的up_limit_id为该事务的transaction id
+            
+            5.为什么rr（可重复读）能实现可重复读而rc(读提交)不能,分两种情况
+                (1)快照读的情况下,rr不能更新事务内的up_limit_id,
+                    而rc每次会把up_limit_id更新为快照读之前最新已提交事务的transaction id,则rc不能可重复读
+                (2)当前读的情况下,rr是利用record lock+gap lock来实现的,而rc没有gap,所以rc不能可重复读 
+        
+        
+        选择普通索引还是唯一索引？
+        对于查询过程来说：
+        a、普通索引，查到满足条件的第一个记录后，继续查找下一个记录，知道第一个不满足条件的记录
+        b、唯一索引，由于索引唯一性，查到第一个满足条件的记录后，停止检索
+        但是，两者的性能差距微乎其微。因为InnoDB根据数据页来读写的。
+        对于更新过程来说：
+        概念：change buffer
+        当需要更新一个数据页，如果数据页在内存中就直接更新，如果不在内存中，在不影响数据一致性的前提下，InnoDB会将这些更新操作缓存在change buffer中。下次查询需要访问这个数据页的时候，将数据页读入内存，然后执行change buffer中的与这个页有关的操作。
+        change buffer是可以持久化的数据。在内存中有拷贝，也会被写入到磁盘上
+        purge:将change buffer中的操作应用到原数据页上，得到最新结果的过程，成为purge
+        访问这个数据页会触发purge，系统有后台线程定期purge，在数据库正常关闭的过程中，也会执行purge
+        唯一索引的更新不能使用change buffer
+        change buffer用的是buffer pool里的内存，change buffer的大小，可以通过参数innodb_change_buffer_max_size来动态设置。这个参数设置为50的时候，表示change buffer的大小最多只能占用buffer pool的50%。
+        将数据从磁盘读入内存涉及随机IO的访问，是数据库里面成本最高的操作之一。
+        change buffer 因为减少了随机磁盘访问，所以对更新性能的提升很明显。
+        change buffer使用场景
+        在一个数据页做purge之前，change buffer记录的变更越多，收益就越大。
+        对于写多读少的业务来说，页面在写完以后马上被访问到的概率比较小，此时change buffer的使用效果最好。这种业务模型常见的就是账单类、日志类的系统。
+        反过来，假设一个业务的更新模式是写入之后马上会做查询，那么即使满足了条件，将更新先记录在change buffer,但之后由于马上要访问这个数据页，会立即触发purge过程。
+        这样随机访问IO的次数不会减少，反而增加了change buffer的维护代价。所以，对于这种业务模式来说，change buffer反而起到了副作用。
+        索引的选择和实践：
+        尽可能使用普通索引。
+        redo log主要节省的是随机写磁盘的IO消耗(转成顺序写)，而change buffer主要节省的则是随机读磁盘的IO消耗。 
+        
+        监控 information_schema.Innodb_trx 表，设置长事务阈值，超过就报警 / 或者 kill；
+        Percona 的 pt-kill 这个工具不错，推荐使用；
+        在业务功能测试阶段要求输出所有的 general_log，分析日志行为提前发现问题；
+        如果使用的是 MySQL 5.6 或者更新版本，把 innodb_undo_tablespaces 设置成 2（或更大的值）。如果真的出现大事务导致回滚段过大，这样设置后清理起来更方便。
+        如果某次写入使用了 change buffer 机制，之后主机异常重启，是否会丢失 change buffer 和数据。
+        
+        不会丢失。虽然是只更新内存，但是在事务提交的时候，把 change buffer 的操作也记录到 redo log 里了，所以崩溃恢复的时候，change buffer 也能找回来。
+        
+        merge 的过程是否会把数据直接写回磁盘。
+        
+        merge 的执行流程是这样的：
+        
+        从磁盘读入数据页到内存（老版本的数据页）；
+        
+        从 change buffer 里找出这个数据页的 change buffer 记录 (可能有多个），依次应用，得到新版数据页；
+        
+        写 redo log。这个 redo log 包含了数据的变更和 change buffer 的变更。
+        
+        到这里 merge 过程就结束了。这时候，数据页和内存中 change buffer 对应的磁盘位置都还没有修改，属于脏页，之后各自刷回自己的物理数据，就是另外一个过程了。
+        
+        数据一致性问题目前来说主要分为三类
+        1.主从不一致
+        解决办法:半同步复制after_commit,after_sync,MGR(after_prepare)。但是都不能完成满足完全实时一致,由于等待的ack点不同,相对来说一致性的强度是递增.
+        2.数据库与缓存的不一致
+        解决办法:读操作直接读缓存,写操作先更新到数据库,淘汰缓存(程序需要保证两个操作的原子性).由于该key的缓存已经清理掉,那么下次读的时候需要先读数据库,在重建缓存.
+        由于redis是单线程,保证了一个操作的原子性.可以通过设置appendfsync always来保证每次操作都把该操作记录并落盘到aof文件里(不过一般redis该值为everysec),毕竟使用redis的目的不是为了保证acid.还是要根据业务来选择
+        3.一个事务跨多个节点或者多种数据库(分库分表和银行转账这种例子)
+        目前好像都是通过2pc,3pc来保证的。
+        count(字段值):如果该字段上有null值.每行的行头有一个标记位,标记该行是否为null.所以多了一层判断。相对更耗时
+        count(主键id):即便是选择的有null值的二级索引,但是也可以挺快的正确计数。因为null的话字段值虽然为null,但是该行上主键id以及指向聚簇索引该id的指针还是存在的,所以不影响计数,也不用做判断,直接遍历该二级索引,取出id值,按行累加就行。
+        count(1)和count(*):看官方文档上说是5.7.18版本之前是扫描聚簇索引,之后是二级索引。虽然不取值,只计数。但是二级索引比聚簇索引需要扫描的页数相对来说更少,这应该也是一种优化,不过我做测试percona版本的5.6都是选择了二级索引
+        这期干货挺多的,学会了如果某表上有count比较多的操作,最好是用count(1)或者count(*),然后选择一列占用字节数最少的建立索引(比如tinyint类型)
+        
+        分布式事务的理解，常见的解决方案有哪些，什么是两阶段提交、三阶段提交；
+        
+        两阶段提交
+        
+        
+        
+        分布式事务的原理2阶段提交，同步\异步\阻塞\非阻塞；
+        数据库事务隔离级别，MySQL默认的隔离级别、Spring如何实现事务、JDBC如何实现事务、嵌套事务实现、分布式事务实现；
+        
+        MySQL记录binlog的方式主要包括三种模式？每种模式的优缺点是什么？
+        mysql的binlog
+        
+        redolog是物理的，binlog是逻辑的；现在由于redo是属于InnoDB引擎，所以必须要有binlog，因为你可以使用别的引擎
+        保证数据库的一致性，必须要保证2份日志一致，使用的2阶段式提交；其实感觉像事务，不是成功就是失败，不能让中间环节出现，也就是一个成功，一个失败
+        如果有一天mysql只有InnoDB引擎了，有redo来实现复制，那么感觉oracle的DG就诞生了，物理的速度也将远超逻辑的，毕竟只记录了改动向量
+        binlog几大模式，一般采用row，因为遇到时间，从库可能会出现不一致的情况，但是row更新前后都有，会导致日志变大
+        最后2个参数，保证事务成功，日志必须落盘，这样，数据库crash后，就不会丢失某个事务的数据了
+        备份时间问题：
+        备份时间周期的长短，感觉有2个方便
+        首先，是恢复数据丢失的时间，既然需要恢复，肯定是数据丢失了。如果一天一备份的话，只要找到这天的全备，加入这天某段时间的binlog来恢复，如果一周一备份，假设是周一，而你要恢复的数据是周日某个时间点，那就，需要全备+周一到周日某个时间点的全部binlog用来恢复，时间相比前者需要增加很多；看业务能忍受的程度
+        其次，是数据库丢失，如果一周一备份的话，需要确保整个一周的binlog都完好无损，否则将无法恢复；而一天一备，只要保证这天的binlog都完好无损；当然这个可以通过校验，或者冗余等技术来实现，相比之下，上面那点更重要
+        binlog主从复制
+        引擎
+        存储引擎的 InnoDB与MyISAM区别，优缺点，使用场景
+        mysql的存储引擎,区别
+        
+        innodb对一行数据的读会枷锁吗？不枷锁，读实际读的是副本
+        
+        求表的size，或做数据统计可用什么存储引擎
+        
+        读多写少可用什么引擎
+        假如要统计多个表应该用什么引擎
+        
+        分表分库
+        说说分库与分表设计
+        分库与分表带来的分布式困境与应对之策（如何解决分布式下的分库分表，全局表？）
+        
+        锁
+        
+        MySQL锁，悲观锁、乐观锁、排它锁、共享锁、表级锁、行级锁；
+        
+        全局锁，表级锁
+        
+        一、全局锁：
+        对整个数据库实例加锁。
+        MySQL提供加全局读锁的方法：Flush tables with read lock(FTWRL)
+        这个命令可以使整个库处于只读状态。使用该命令之后，数据更新语句、数据定义语句和更新类事务的提交语句等操作都会被阻塞。
+        使用场景：全库逻辑备份。
+        风险：
+        1.如果在主库备份，在备份期间不能更新，业务停摆
+        2.如果在从库备份，备份期间不能执行主库同步的binlog，导致主从延迟
+        官方自带的逻辑备份工具mysqldump，当mysqldump使用参数--single-transaction的时候，会启动一个事务，确保拿到一致性视图。而由于MVCC的支持，这个过程中数据是可以正常更新的。
+        一致性读是好，但是前提是引擎要支持这个隔离级别。
+        如果要全库只读，为什么不使用set global readonly=true的方式？
+        1.在有些系统中，readonly的值会被用来做其他逻辑，比如判断主备库。所以修改global变量的方式影响太大。
+        2.在异常处理机制上有差异。如果执行FTWRL命令之后由于客户端发生异常断开，那么MySQL会自动释放这个全局锁，整个库回到可以正常更新的状态。而将整个库设置为readonly之后，如果客户端发生异常，则数据库就会一直保持readonly状态，这样会导致整个库长时间处于不可写状态，风险较高。
+        二、表级锁
+        MySQL里面表级锁有两种，一种是表锁，一种是元数据所(meta data lock,MDL)
+        表锁的语法是:lock tables ... read/write
+        可以用unlock tables主动释放锁，也可以在客户端断开的时候自动释放。lock tables语法除了会限制别的线程的读写外，也限定了本线程接下来的操作对象。
+        对于InnoDB这种支持行锁的引擎，一般不使用lock tables命令来控制并发，毕竟锁住整个表的影响面还是太大。
+        MDL：不需要显式使用，在访问一个表的时候会被自动加上。
+        MDL的作用：保证读写的正确性。
+        在对一个表做增删改查操作的时候，加MDL读锁；当要对表做结构变更操作的时候，加MDL写锁。
+        读锁之间不互斥。读写锁之间，写锁之间是互斥的，用来保证变更表结构操作的安全性。
+        MDL 会直到事务提交才会释放，在做表结构变更的时候，一定要小心不要导致锁住线上查询和更新。
+        
+        行级锁
+        
+        两阶段锁：在 InnoDB 事务中，行锁是在需要的时候才加上的，但并不是不需要了就立刻释放， 而是要等到事务结束时才释放。
+        建议：如果你的事务中需要锁多个行，要把最可能造成锁冲突、最可能影响并发度的锁尽量往后放。
+        死锁：当并发系统中不同线程出现循环资源依赖，涉及的线程都在等待别的线程释放资源时，就会导致这几个线程都进入无限等待的状态。
+        解决方案：
+        1、通过参数 innodb_lock_wait_timeout 根据实际业务场景来设置超时时间，InnoDB引擎默认值是50s。
+        2、发起死锁检测，发现死锁后，主动回滚死锁链条中的某一个事务，让其他事务得以继续执行。将参数 innodb_deadlock_detect 设置为 on，表示开启这个逻辑（默认是开启状态）。
+        如何解决热点行更新导致的性能问题？
+        1、如果你能确保这个业务一定不会出现死锁，可以临时把死锁检测关闭掉。一般不建议采用
+        2、控制并发度，对应相同行的更新，在进入引擎之前排队。这样在InnoDB内部就不会有大量的死锁检测工作了。
+        3、将热更新的行数据拆分成逻辑上的多行来减少锁冲突，但是业务复杂度可能会大大提高。
+        
+        innodb行级锁是通过锁索引记录实现的，如果更新的列没建索引是会锁住整个表的。
+        
+        要删除一个表里面的前 10000 行数据，有以下三种方法可以做到：
+        
+        第一种，直接执行 delete from T limit 10000;
+        
+        第二种，在一个连接中循环执行 20 次delete from T limit 500;
+        
+        第三种，在20 个连接中同时执行 delete from T limit500.
+        
+        第二种好，第一种单个语句占用时间长，锁的时间长，大事务导致主从延迟；第三种会认为造成锁冲突。
+        
+        1.delete操作会生成插入相同记录的记录复用和page复用
+        2.delete会产生page空洞，随机insert也会产生page空洞(页分裂)，索引update分解为delete和insert也会产生空洞
+        3.重建表可以使数据在page上更紧凑
+        4.alter table tb_name engine=innodb 在非online ddl 时server层生成临时表且mdl写锁，阻塞其他会话dml操作，锁阻塞时间久。在online ddl时，时innodb引擎操作步骤：
+        a.扫描表页，获取表的dml读锁;
+        b.将表页复制到一个临时文件，以b+树格式存储;
+        c.在扫描和复制page的过程生成row.log日志记录ddl复制过程的dml操作;
+        d.将row.log操作日志应用到临时文件;
+        e.获取dml的写锁，临时文件与表文件替换
+        
+        5.ddl online时，innodb表加全文索引时，会阻塞dml操作，其实效果与非online ddl一样的。ddl online一定是inplace;inplace 的ddl不一定是online,例如:添加fulltext索引和spatial索引
+        6.optimize table 重建表及索引，收集统计信息
+        alter table tb engine=innodb 重建表其实也收集统计信息
+        analyze table tb 重新收集统计信息
+        
+        乐观锁的业务场景及实现方式；
+        mysql的行级锁加在哪个位置
+        如何选择合适的分布式主键方案
+        选择合适的数据存储方案
+        
+        分布式
+        读写分离何时强制要读主库，读哪个从库是通过什么方式决定的，从库的同步mysql用的什么方式
+        主从复制
+        对表做统计时可直接看schema info信息，即查看表的系统信息
+        统计100G的ip文件中出现ip次数最多的100个ip
+        不可重复读会出现在什么场景？
+        项目 MySQL 的数据量和并发量有多大？
+        mvcc,Next-Key Lock
+        
+        select * from table where a=1 and b=1; select * from table where b=1; select * from table where a=1; 你会如何创建索引？
+        user表和blog表连表查询规定时间范围内发帖最多的前10个用户；
+        MySQL索引的创建原理和准则给你道题让你创建；
+        从数据中查出某个时间段访问最多前10个ip，sql或者shell都行；
+        
+        5万条数据怎么实现删除
+        性能优化
     
-    知道 CAS 吗? Java 中 CAS 是怎么实现的?
-    Compare and Swap，一种乐观锁的实现，可以称为"无锁"(lock-free)，CAS 由于要保证原子性无法由 JVM 本身实现，
-    需要调用对应 OS 的指令(这块其实我不了解细节)
+### 8.6 综合常规面试题
+    https://www.zhihu.com/collection/72725882
     
+### 8.7 mybatis常见面试题
+    https://segmentfault.com/a/1190000013678579
     
-## 9.设计模式
+### 8.8 综合常规面试题
+    https://github.com/leelovejava/doc/blob/master/interview/interview.md
     
-    策略模式
-    https://www.cnblogs.com/lewis0077/p/5133812.html
-    
-## 10.网络IO/j2ee等基础
+## 9.网络IO/j2ee等基础
 
     位 bit 
     字节 byte 
@@ -1747,33 +3876,33 @@
 ## 12.spring
 
     *bean生命周期
-        Spring容器初始化
-        =====================================
-        调用GiraffeService无参构造函数
-        GiraffeService中利用set方法设置属性值
-        调用setBeanName:: Bean Name defined in context=giraffeService
-        调用setBeanClassLoader,ClassLoader Name = sun.misc.Launcher$AppClassLoader
-        调用setBeanFactory,setBeanFactory:: giraffe bean singleton=true
-        调用setEnvironment
-        调用setResourceLoader:: Resource File Name=spring-beans.xml
-        调用setApplicationEventPublisher
-        调用setApplicationContext:: Bean Definition Names=[giraffeService, org.springframework.context.annotation.CommonAnnotationBeanPostProcessor#0, com.giraffe.spring.service.GiraffeServicePostProcessor#0]
-        执行BeanPostProcessor的postProcessBeforeInitialization方法,beanName=giraffeService
-        调用PostConstruct注解标注的方法
-        执行InitializingBean接口的afterPropertiesSet方法
-        执行配置的init-method
-        执行BeanPostProcessor的postProcessAfterInitialization方法,beanName=giraffeService
-        Spring容器初始化完毕
-        =====================================
-        从容器中获取Bean
-        giraffe Name=李光洙
-        =====================================
-        调用preDestroy注解标注的方法
-        执行DisposableBean接口的destroy方法
-        执行配置的destroy-method
-        Spring容器关闭
-            
-            
+    https://www.jianshu.com/p/3944792a5fff
+        ApplicationContext容器中，Bean的生命周期流程如上图所示，流程大致如下：
+        1.首先容器启动后，会对scope为singleton且非懒加载的bean进行实例化，
+        2.按照Bean定义信息配置信息，注入所有的属性，
+        3.如果Bean实现了BeanNameAware接口，会回调该接口的setBeanName()方法，传入该Bean的id，此时该Bean就获得了自己在配置文件中的id，
+        4.如果Bean实现了BeanFactoryAware接口,会回调该接口的setBeanFactory()方法，传入该Bean的BeanFactory，这样该Bean就获得了自己所在的BeanFactory，
+        5.如果Bean实现了ApplicationContextAware接口,会回调该接口的setApplicationContext()方法，传入该Bean的ApplicationContext，这样该Bean就获得了自己所在的ApplicationContext，
+        6.如果有Bean实现了BeanPostProcessor接口，则会回调该接口的postProcessBeforeInitialzation()方法，
+        7.如果Bean实现了InitializingBean接口，则会回调该接口的afterPropertiesSet()方法，
+        8.如果Bean配置了init-method方法，则会执行init-method配置的方法，
+        9.如果有Bean实现了BeanPostProcessor接口，则会回调该接口的postProcessAfterInitialization()方法，
+        10.经过流程9之后，就可以正式使用该Bean了,对于scope为singleton的Bean,Spring的ioc容器中会缓存一份该bean的实例，而对于scope为prototype的Bean,每次被调用都会new一个新的对象，期生命周期就交给调用方管理了，不再是Spring容器进行管理了
+        11.容器关闭后，如果Bean实现了DisposableBean接口，则会回调该接口的destroy()方法，
+        12.如果Bean配置了destroy-method方法，则会执行destroy-method配置的方法，至此，整个Bean的生命周期结束
+        
+    Spring的BeanFactory和ApplicationContext的区别?
+        https://my.oschina.net/yao00jun/blog/215642
+        https://blog.csdn.net/qq_36748278/article/details/78264764
+        
+    Spring IOC 怎么注入类，怎么实例化对象 实例化
+        Spring IoC容器则需要根据Bean定义里的配置元数据使用反射机制来创建Bean
+        使用构造器实例化Bean 有参/无参;使用静态工厂实例化Bean;使用实例工厂实例化Bean.
+        使用@Autowire注解注入的时机则是容器刚启动的时候就开始注入；注入之前要先初始化bean；ApplicationContext 的初始化和BeanFactory 有一个重大的区别：BeanFactory在初始化容器时，并未实例化Bean，直到第一次访问某个Bean 时才实例目标Bean；而ApplicationContext 则在初始化应用上下文时就实例化所有单实例的Bean。
+        注入
+        
+        接口、setter、构造器
+    
             
     对于作用域为 prototype 的 bean ，其destroy方法并没有被调用。如果 bean 的 scope 设为prototype时，当容器关闭时，
     destroy 方法不会被调用。对于 prototype 作用域的 bean，有一点非常重要，
@@ -3037,13 +5166,151 @@
     
 
 ##15 mybatis
+    https://segmentfault.com/a/1190000013678579     (Mybatis常见面试题)
+    Mybatis缓存(*)
+        一级缓存的作用域是同一个SqlSession，在同一个sqlSession中两次执行相同的sql语句，第一次执行完毕会将数据库中查询的数据写到缓存（内存），
+        第二次会从缓存中获取数据将不再从数据库查询，从而提高查询效率。当一个sqlSession结束后该sqlSession中的一级缓存也就不存在了
+        。Mybatis默认开启一级缓存。
+        二级缓存是mapper级别的缓存，多个SqlSession去操作同一个Mapper的sql语句，多个SqlSession去操作数据库得到数据会存在二级缓存区域，
+        多个SqlSession可以共用二级缓存，二级缓存是跨SqlSession的。不同的sqlSession两次执行相同namespace下的sql语句且向sql中传递参数
+        也相同即最终执行相同的sql语句，第一次执行完毕会将数据库中查询的数据写到缓存（内存），第二次会从缓存中获取数据将不再从数据库查询，
+        从而提高查询效率。Mybatis默认没有开启二级缓存需要在setting全局参数中配置开启二级缓存
+    
+    如何获取自动生成的(主)键值?
+        通过LAST_INSERT_ID()获取刚插入记录的自增主键值，在insert语句执行后，执行select LAST_INSERT_ID()就可以获取自增主键。
+        
+         <insert id="insertUser" parameterType="cn.itcast.mybatis.po.User">
+                <selectKey keyProperty="id" order="AFTER" resultType="int">
+                    select LAST_INSERT_ID()
+                </selectKey>
+                INSERT INTO USER(username,birthday,sex,address) VALUES(#{username},#{birthday},#{sex},#{address})
+        </insert>
+        
+    Mybatis动态sql是做什么的？都有哪些动态sql？能简述一下动态sql的执行原理不？
+        Mybatis动态sql可以让我们在Xml映射文件内，以标签的形式编写动态sql，完成逻辑判断和动态拼接sql的功能。
+        Mybatis提供了9种动态sql标签：trim|where|set|foreach|if|choose|when|otherwise|bind。
+        其执行原理为，使用OGNL从sql参数对象中计算表达式的值，根据表达式的值动态拼接sql，以此来完成动态sql的功能。
+    
+    通常一个Xml映射文件，都会写一个Dao接口与之对应，请问，这个Dao接口的工作原理是什么？Dao接口里的方法，参数不同时，方法能重载吗？
+        Dao接口，就是人们常说的Mapper接口，接口的全限名，就是映射文件中的namespace的值，接口的方法名，就是映射文件中MappedStatement
+        的id值，接口方法内的参数，就是传递给sql的参数。
+        Mapper接口是没有实现类的，当调用接口方法时，接口全限名+方法名拼接字符串作为key值，可唯一定位一个MappedStatement
+        
+        举例：
+        com.mybatis3.mappers.StudentDao.findStudentById，
+        
+        可以唯一找到namespace为com.mybatis3.mappers.StudentDao下面id = findStudentById的MappedStatement。在Mybatis中，
+        每一个<select>、<insert>、<update>、<delete>标签，都会被解析为一个MappedStatement对象。
+        Dao接口里的方法，是不能重载的，因为是全限名+方法名的保存和寻找策略。
+        
+        Dao接口的工作原理是JDK动态代理，Mybatis运行时会使用JDK动态代理为Dao接口生成代理proxy对象，代理对象proxy会拦截接口方法，
+        转而执行MappedStatement所代表的sql，然后将sql执行结果返回。
+        
+    接口绑定有几种实现方式,分别是怎么实现的?
+        接口绑定有两种实现方式：
+        
+        一种是通过注解绑定,就是在接口的方法上面加上@Select@Update等注解里面包含Sql语句来绑定
+        另外一种就是通过xml里面写SQL来绑定,在这种情况下,要指定xml映射文件里面的namespace必须为接口的全路径名.
+        
+    Mybatis是如何进行分页的？分页插件的原理是什么？
+        Mybatis使用RowBounds对象进行分页，它是针对ResultSet结果集执行的内存分页，而非物理分页，可以在sql内直接书写带有物理分页的参数
+        来完成物理分页功能，也可以使用分页插件来完成物理分页。
+        
+        分页插件的基本原理是使用Mybatis提供的插件接口，实现自定义插件，在插件的拦截方法内拦截待执行的sql，然后重写sql，根据dialect方言，
+        添加对应的物理分页语句和物理分页参数。
+        
+        举例：select * from student，拦截sql后重写为：select t.* from （select * from student）t limit 0，10
+        
+    简述Mybatis的插件运行原理，以及如何编写一个插件
+        Mybatis仅可以编写针对ParameterHandler、ResultSetHandler、StatementHandler、Executor这4种接口的插件，Mybatis使用JDK的
+        动态代理，为需要拦截的接口生成代理对象以实现接口方法拦截功能，每当执行这4种接口对象的方法时，就会进入拦截方法，具体就是
+        InvocationHandler的invoke()方法，当然，只会拦截那些你指定需要拦截的方法。
+        
+        实现Mybatis的Interceptor接口并复写intercept()方法，然后在给插件编写注解，指定要拦截哪一个接口的哪些方法即可，记住，
+        别忘了在配置文件中配置你编写的插件。
+        
+    Mybatis是否支持延迟加载？如果支持，它的实现原理是什么？
+        Mybatis仅支持association关联对象和collection关联集合对象的延迟加载，association指的就是一对一，collection指的就是一对多查询。
+        在Mybatis配置文件中，可以配置是否启用延迟加载lazyLoadingEnabled=true|false。
+        
+        它的原理是，使用CGLIB创建目标对象的代理对象，当调用目标方法时，进入拦截器方法，比如调用a.getB().getName()，拦截器invoke()
+        方法发现a.getB()是null值，那么就会单独发送事先保存好的查询关联B对象的sql，把B查询上来，然后调用a.setB(b)，于是a的对象b属性
+        就有值了，接着完成a.getB().getName()方法的调用。这就是延迟加载的基本原理。
+        
+        当然了，不光是Mybatis，几乎所有的包括Hibernate，支持延迟加载的原理都是一样的。
+        
+    Mybatis都有哪些Executor执行器？它们之间的区别是什么？
+        Mybatis有三种基本的Executor执行器，SimpleExecutor、ReuseExecutor、BatchExecutor。
+        
+            SimpleExecutor：每执行一次update或select，就开启一个Statement对象，用完立刻关闭Statement对象。
+            ReuseExecutor：执行update或select，以sql作为key查找Statement对象，存在就使用，不存在就创建，用完后，不关闭Statement对象，
+                而是放置于Map<String, Statement>内，供下一次使用。简言之，就是重复使用Statement对象。
+            BatchExecutor：执行update（没有select，JDBC批处理不支持select），将所有sql都添加到批处理中（addBatch()），
+                等待统一执行（executeBatch()），它缓存了多个Statement对象，每个Statement对象都是addBatch()完毕后，等待逐一执行
+                executeBatch()批处理。与JDBC批处理相同。
+        作用范围：Executor的这些特点，都严格限制在SqlSession生命周期范围内。
+        
 
     
     
 
 ##16 数据库
+
+    连接池
+        druid
+            配置        缺省值       	说明
+            name	 	配置这个属性的意义在于，如果存在多个数据源，监控的时候可以通过名字来区分开来。 
+            如果没有配置，将会生成一个名字，格式是："DataSource-" + System.identityHashCode(this)
+            jdbcUrl	 	连接数据库的url，不同数据库不一样。例如： 
+            mysql : jdbc:mysql://10.20.153.104:3306/druid2 
+            oracle : jdbc:oracle:thin:@10.20.149.85:1521:ocnauto
+            username	 	连接数据库的用户名
+            password	 	连接数据库的密码。如果你不希望密码直接写在配置文件中，可以使用ConfigFilter。详细看这里：https://github.com/alibaba/druid/wiki/%E4%BD%BF%E7%94%A8ConfigFilter
+            driverClassName	根据url自动识别	这一项可配可不配，如果不配置druid会根据url自动识别dbType，然后选择相应的driverClassName(建议配置下)
+            initialSize	0	初始化时建立物理连接的个数。初始化发生在显示调用init方法，或者第一次getConnection时
+            maxActive	8	最大连接池数量
+            maxIdle	8	已经不再使用，配置了也没效果
+            minIdle	 	最小连接池数量
+            maxWait	 	获取连接时最大等待时间，单位毫秒。配置了maxWait之后，缺省启用公平锁，并发效率会有所下降，如果需要可以通过配置useUnfairLock属性为true使用非公平锁。
+            poolPreparedStatements	false	是否缓存preparedStatement，也就是PSCache。PSCache对支持游标的数据库性能提升巨大，比如说oracle。在mysql下建议关闭。
+            maxOpenPreparedStatements	-1	要启用PSCache，必须配置大于0，当大于0时，poolPreparedStatements自动触发修改为true。在Druid中，不会存在Oracle下PSCache占用内存过多的问题，可以把这个数值配置大一些，比如说100
+            validationQuery	 	用来检测连接是否有效的sql，要求是一个查询语句。如果validationQuery为null，testOnBorrow、testOnReturn、testWhileIdle都不会其作用。
+            testOnBorrow	true	申请连接时执行validationQuery检测连接是否有效，做了这个配置会降低性能。
+            testOnReturn	false	归还连接时执行validationQuery检测连接是否有效，做了这个配置会降低性能
+            testWhileIdle	false	建议配置为true，不影响性能，并且保证安全性。申请连接的时候检测，如果空闲时间大于timeBetweenEvictionRunsMillis，执行validationQuery检测连接是否有效。
+            timeBetweenEvictionRunsMillis	 	有两个含义： 
+            1) Destroy线程会检测连接的间隔时间2) testWhileIdle的判断依据，详细看testWhileIdle属性的说明
+            numTestsPerEvictionRun	 	不再使用，一个DruidDataSource只支持一个EvictionRun
+            minEvictableIdleTimeMillis	 	 
+            connectionInitSqls	 	物理连接初始化的时候执行的sql
+            exceptionSorter	根据dbType自动识别	当数据库抛出一些不可恢复的异常时，抛弃连接
+            filters	 	属性类型是字符串，通过别名的方式配置扩展插件，常用的插件有： 
+            监控统计用的filter:stat日志用的filter:log4j防御sql注入的filter:wall
+            proxyFilters	 	
+            类型是List<com.alibaba.druid.filter.Filter>，如果同时配置了filters和proxyFilters，是组合关系，并非替换关系
+    
+    MySQL中有六种日志文件，分别是：重做日志（redo log）、回滚日志（undo log）、二进制日志（binlog）、错误日志（errorlog）、
+    慢查询日志（slow query log）、一般查询日志（general log），中继日志（relay log）。
     
     redo log和 undo log
+    http://www.importnew.com/28039.html
+        redo log 
+            作用：
+                确保事务的持久性。
+                防止在发生故障的时间点，尚有脏页未写入磁盘，在重启mysql服务的时候，根据redo log进行重做，从而达到事务的持久性这一特性。
+                很重要一点，redo log是什么时候写盘的？前面说了是在事物开始之后逐步写盘的。
+                之所以说重做日志是在事务开始之后逐步写入重做日志文件，而不一定是事务提交才写入重做日志缓存，
+                
+        回滚日志（undo log）     
+            作用：
+                保存了事务发生之前的数据的一个版本，可以用于回滚，同时可以提供多版本并发控制下的读（MVCC），也即非锁定读
+            内容：
+                逻辑格式的日志，在执行undo的时候，仅仅是将数据从逻辑上恢复至事务之前的状态，而不是从物理页面上操作实现的，这一点是不同于redo log的。
+            什么时候产生：
+                事务开始之前，将当前是的版本生成undo log，undo 也会产生 redo 来保证undo log的可靠性      
+                undo是在事务开始之前保存的被修改数据的一个版本，产生undo日志的时候，同样会伴随类似于保护事务持久化机制的redolog的产生。
+
+                
         1.redo log通常是物理日志，记录的是数据页的物理修改，而不是某一行或某几行修改成怎样怎样，它用来恢复提交后的物理数据页
         (恢复数据页，且只能恢复到最后一次提交的位置)。
         2.undo用来回滚行记录到某个版本。undo log一般是逻辑日志，根据每行记录进行记录。
@@ -3061,6 +5328,35 @@
         undo的原因是：在oracle正常运行时，为了提高效率，加入用户还没有commit,但是空闲内存不多时，会由DBWR进程将脏块
         写入到数据文件中，以便腾出宝贵的内存供其它进程使用。这就是需要UNDO的原因。因为还没有发出commit语句，但是
         oracle的dbwr进程已经将没有提交的数据写到数据文件中去了。
+        
+    binlog
+        作用：
+        1，用于复制，在主从复制中，从库利用主库上的binlog进行重播，实现主从同步。
+        2，用于数据库的基于时间点的还原。
+        
+        这里与redo log很明显的差异就是redo log并不一定是在事务提交的时候刷新到磁盘，redo log是在事务开始之后就开始逐步写入磁盘。
+        
+        
+        MySQL的二进制日志可以说是MySQL最重要的日志了，它记录了所有的DDL和DML(除了数据查询语句)语句，以事件形式记录，还包含语句所执行的
+        消耗的时间，MySQL的二进制日志是事务安全型的。
+    
+        一般来说开启二进制日志大概会有1%的性能损耗(参见MySQL官方中文手册 5.1.24版)。二进制有两个最重要的使用场景: 
+            其一：MySQL Replication在Master端开启binlog，Mster把它的二进制日志传递给slaves来达到master-slave数据一致的目的。 
+            其二：自然就是数据恢复了，通过使用mysqlbinlog工具来使恢复数据。
+        
+        二进制日志包括两类文件：二进制日志索引文件（文件名后缀为.index）用于记录所有的二进制文件，二进制日志文件（文件名后缀为.00000*）
+        记录数据库所有的DDL和DML(除了数据查询语句)语句事件。 
+
+    *binlog 和 redolog 的区别
+        1，作用不同：redo log是保证事务的持久性的，是事务层面的，binlog作为还原的功能，是数据库层面的（当然也可以精确到事务层面的），
+            虽然都有还原的意思，但是其保护数据的层次是不一样的。
+        2，内容不同：redo log是物理日志，是数据页面的修改之后的物理记录，binlog是逻辑日志，可以简单认为记录的就是sql语句
+        3，另外，两者日志产生的时间，可以释放的时间，在可释放的情况下清理机制，都是完全不同的。
+        4，恢复数据时候的效率，基于物理日志的redo log恢复数据的效率要高于语句逻辑日志的binlog
+    
+        关于事务提交时，redo log和binlog的写入顺序，为了保证主从复制时候的主从一致（当然也包括使用binlog进行基于时间点还原的情况），是要严格一致的，
+        MySQL通过两阶段提交过程来完成事务的一致性的，也即redo log和binlog的一致性的，理论上是先写redo log，再写binlog，
+        两个日志都提交成功（刷入磁盘），事务才算真正的完成。
         
     什么是脏读？幻读？不可重复读？什么是事务的隔离级别？
         脏读：事务A读取了事务B更新的数据，然后B回滚操作，那么A读取到的数据是脏数据
@@ -5624,6 +7920,20 @@ https://juejin.im/post/58d8daedac502e0058d9edf0 (整体介绍)
          
           
 ##设计模式
+    单例模式(*)
+        为啥要加volatile
+            private volatile static Singleton2 singleton2;
+            第一个if (instance == null)，只有instance为null的时候，才进入synchronized. 第二个if (instance == null)，
+            是为了防止可能出现多个实例的情况。
+            volatile: 主要在于singleton = new Singleton()这句，这并非是一个原子操作，事实上在 JVM 中这句话大概做了下面 3 件事情。
+             　　1. 给 singleton 分配内存 　　
+                 2. 调用 Singleton 的构造函数来初始化成员变量，形成实例 　　
+                 3. 将singleton对象指向分配的内存空间（执行完这步 singleton才是非 null 了）但是在 JVM 的即时编译器中存在指令重排序的优化。 　　
+             也就是说上面的第二步和第三步的顺序是不能保证的，最终的执行顺序可能是 1-2-3 也可能是 1-3-2。如果是后者，则在 3 执行完毕、
+             2 未执行之前，被线程二抢占了 ，这时 instance 已经是非 null 了（但却没有初始化），所以线程二会直接返回 instance，
+             然后使用，然后顺理成章地报错。
+          https://www.cnblogs.com/keeya/p/9260565.html  
+
     总体来说设计模式分为三大类：
         创建型模式，共五种：工厂方法模式、抽象工厂模式、单例模式、建造者模式、原型模式。
         结构型模式，共七种：适配器模式、装饰器模式、代理模式、外观模式、桥接模式、组合模式、享元模式。
