@@ -1,3 +1,9 @@
+##复习方法
+    1、知道那个知识点为了解决什么问题？（使用场景）
+    2、然后怎么解决的？（技术原理：过程（一般涉及到设计模式的应用，包含启动过程、生命周期、扩展点等内容）、底层技术细节
+        （动态代理技术、字节码修改技术、零拷贝（减少用户态内核态切换）、NIO、多路复用等））
+    3、还有哪些场景是无法覆盖的？有其他技术可以替代吗？同问题领域技术优缺点对比
+
 ## 0.jdk
 
 ###目录
@@ -9,6 +15,10 @@
       遇到new运算符号了，在内存上创建string对象，并将其返回给s，又一个对象 
       所以总共是2个对象 
     5. Java序列化原理
+    6. TreeMap 和 LinkedHashMap
+        TreeMap取出来的是排序后的键值对。但如果您要按自然顺序或自定义顺序遍历键，那么TreeMap会更好。 LinkedHashMap 是HashMap的一个子类，
+        如果需要输出的顺序和输入的相同,那么用LinkedHashMap可以实现,它还可以按读取顺序来排列，像连接池中可以应用。
+        
 ###结束
 
     stream
@@ -198,6 +208,7 @@
     2.类加载机制和对象生命周期
     3.双亲委派,为啥要这样,有违背这个原则的吗(tomcat)
     4.反射
+    5.如何自定义自己的类加载器，自己的类加载器和Java自带的类加载器关系如何处理？
 ###结束
 
      *JVM 类加载机制详解
@@ -932,6 +943,18 @@
          AQS是将每条请求共享资源的线程封装成一个CLH锁队列的一个结点（Node）来实现锁的分配。
          用CAS操作来管理这个同步状态
          内部内有Node和Condition,一个AQS一般包括一个同步队列和多个等待队列(多condition)
+         
+         AQS使用一个FIFO的队列表示排队等待锁的线程，队列头节点称作“哨兵节点”或者“哑节点”，它不与任何线程关联。其他的节点与等待线程关联，
+         每个节点维护一个等待状态waitStatus
+         http://ifeve.com/java-special-troops-aqs/
+         
+         总结一下acquire()的流程：
+             调用自定义同步器的tryAcquire()尝试直接去获取资源，如果成功则直接返回；
+             没成功，则addWaiter()将该线程加入等待队列的尾部，并标记为独占模式；
+             acquireQueued()使线程在等待队列中休息，有机会时（轮到自己，会被unpark()）会去尝试获取资源。获取到资源后才返回。如果在整个等待过程中被中断过，则返回true，否则返回false。
+             如果线程在等待过程中被中断过，它是不响应的。只是获取资源后才再进行自我中断selfInterrupt()，将中断补上。
+         
+         
     9.lock
         ReentrantReadWriteLock,Reentrant,多condition,sign(),await()
         与synchronized的区别:
@@ -989,7 +1012,47 @@
          调用get set 方法会清理key为null的值,线程池没调用时就会内存泄漏
     25.并发容器     (Condition notEmpty  notFull)
     26.Lock，tryLock，lockInterruptibly区别
-       
+    27.CyclicBarrier底层实现和原理
+        ReentrantLock + Condition实现,循环使用分代实现,屏障使用condition+count 如果count=0,说明都到达了await,
+        最后一个到达的线程唤醒其他所有线程,不再进入await,直接return
+        https://www.cnblogs.com/200911/p/6060195.html   (讲解比较详细)
+    28.CountDownLatch实现原理
+         finally {
+            countDownLatch.countDown();
+         }
+         最好放在finnally里面
+         
+         继承AQS,初始化state为count,countDown state减少1,await是进入一个死循环,检查state的值是否为0,为0跳出循环
+    29.独占锁的获取和释放流程
+        获取
+            调用入口方法acquire(arg)
+            调用模版方法tryAcquire(arg)尝试获取锁，若成功则返回，若失败则走下一步
+            将当前线程构造成一个Node节点，并利用CAS将其加入到同步队列到尾部，然后该节点对应到线程进入自旋状态
+            自旋时，首先判断其前驱节点释放为头节点&是否成功获取同步状态，两个条件都成立，则将当前线程的节点设置为头节点，如果不是，则利用LockSupport.park(this)将当前线程挂起 ,等待被前驱节点唤醒
+        释放
+            调用入口方法release(arg)
+            调用模版方法tryRelease(arg)释放同步状态
+            获取当前节点的下一个节点
+            利用LockSupport.unpark(currentNode.next.thread)唤醒后继节点（接获取的第四步） 
+    30.共享锁的获取和释放流程
+        获取锁
+            调用acquireShared(arg)入口方法
+            进入tryAcquireShared(arg)模版方法获取同步状态，如果返返回值>=0，则说明同步状态(state)有剩余，获取锁成功直接返回
+            如果tryAcquireShared(arg)返回值<0，说明获取同步状态失败，向队列尾部添加一个共享类型的Node节点，随即该节点进入自旋状态
+            自旋时，首先检查前驱节点释放为头节点&tryAcquireShared()是否>=0(即成功获取同步状态)
+            如果是，则说明当前节点可执行，同时把当前节点设置为头节点，并且唤醒所有后继节点
+            如果否，则利用LockSupport.unpark(this)挂起当前线程，等待被前驱节点唤醒
+        释放锁
+            调用releaseShared(arg)模版方法释放同步状态
+            如果释放成，则遍历整个队列，利用LockSupport.unpark(nextNode.thread)唤醒所有后继节点
+        
+    31.独占锁和共享锁在实现上的区别
+        独占锁的同步状态值为1，即同一时刻只能有一个线程成功获取同步状态
+        共享锁的同步状态>1，取值由上层同步组件确定
+        独占锁队列中头节点运行完成后释放它的直接后继节点
+        共享锁队列中头节点运行完成后释放它后面的所有节点
+        共享锁中会出现多个线程（即同步队列中的节点）同时成功获取同步状态的情况
+
 
         
 
@@ -3813,6 +3876,99 @@
     https://www.cnblogs.com/qiaozhoulin/p/5075372.html
 ### 8.13 常见面试题包括dubbo,netty
     https://juejin.im/post/5c86fb99e51d4557a74b98bc
+### 8.14 面试题
+    (阿里)
+       1）Java的数据结构相关的类实现原理，比如LinkedList，ArrayList，HashMap，TreeMap这一类的。以下简单模拟一个数据结构的连环炮。
+    　　比如，面试官先问你HashMap是不是有序的？
+    　　你肯定回答说，不是有序的。那面试官就会继续问你，有没有有顺序的Map实现类？
+    　　你如果这个时候说不知道的话，那这个问题就到此结束了。如果你说有TreeMap和LinkedHashMap。
+    　　那么面试官接下来就可能会问你，TreeMap和LinkedHashMap是如何保证它的顺序的？
+    　　如果你回答不上来，那么到此为止。如果你依然回答上来了，那么面试官还会继续问你，你觉得它们两个哪个的有序实现比较好？
+    　　如果你依然可以回答的话，那么面试官会继续问你，你觉得还有没有比它更好或者更高效的实现方式？
+    　　如果你还能说出来的话，那么就你所说的实现方式肯定依然可以问你很多问题。
+    　　以上就是一个面试官一步一步提问的例子。所以，如果你了解的不多，千万不要敷衍，因为可能下一个问题你就暴露了，还不如直接说不会，把这个问题结束掉，赶紧切换到你熟悉的领域。
+    
+    　　2）Java并发包当中的类，它们都有哪些作用，以及它们的实现原理，这些类就是java.concurrent包下面的。与上面一样，咱们也简单的模拟一个并发包的连环炮。
+    　　比如面试官可能会先问你，如果想实现所有的线程一起等待某个事件的发生，当某个事件发生时，所有线程一起开始往下执行的话，有什么好的办法吗？
+    　　这个时候你可能会说可以用栅栏（Java的并发包中的CyclicBarrier），那么面试官就会继续问你，你知道它的实现原理吗？
+    　　如果你继续回答的话，面试官可能会继续问你，你还知道其它的实现方式吗？
+    　　如果你还能说出很多种实现方式的话，那么继续问你，你觉得这些方式里哪个方式更好？
+    　　如果你说出来某一个方式比较好的话，面试官依然可以继续问你，那如果让你来写的话，你觉得还有比它更好的实现方式吗？
+    　　如果你这个时候依然可以说出来你自己更好的实现方式，那么面试官肯定还会揪着这个继续问你。
+    　　为什么说面试的时候要引导面试官，原因就在这了。因为面试官的提问很多时候都是有迹可循的，你如果抓住了他的轨迹，能够猜到他下面很可能会问什么，那你在回答的时候就可以往你想要谈的方向去说。这样面试时就会显得更加从容，更加的游刃有余。
+    　　
+        3）IO包和NIO包中的内容。这部分里面NIO会是重点，IO包大部分都会比较熟悉，因此可能会直接略过，直接问你NIO的内容。
+    　　IO包和NIO包的内容相对来说不是很多，首先NIO模型要熟悉，特别是其中的selector一定要非常清楚它的职责和实现原理。其实NIO的核心是IO线程池，一定要记住这个关键点。有的时候，面试官可能也会问你IO包的设计模式（装饰器模式），为什么要这样设计？
+    　　有的面试官还会问你有没有更好的设计，这个时候如果你不知道请果断说自己现在的水平有限，想不出来更好的设计，千万不要信口开河，随意YY。
+    　　
+        4）Java的虚拟机的内容。这部分主要包括三部分，GC、类加载机制，以及内存。
+    　　一个GC部分简单的连环炮。
+        面试官可以先问你什么时候一个对象会被GC？
+    　　接着继续问你为什么要在这种时候对象才会被GC？
+    　　接着继续问你GC策略都有哪些分类？
+    　　你如果说出来了，继续问你这些策略分别都有什么优劣势？都适用于什么场景？
+    　　你继续说出来了以后，给你举个实际的场景，让你选择一个GC策略？
+    　　你如果选出来了，继续问你，为什么要选择这个策略？
+    　　
+        下面是关于类加载机制的简单连环炮。
+            首先肯定是先问你Java的类加载器都有哪些？
+        　　回答了这些以后，可能会问你每个类加载器都加载哪些类？
+        　　说完以后，可能会问你这些类加载之间的父子关系是怎样的？
+        　　你在回答的时候可能会提到双亲委派模型，那么可以继续问你什么是双亲委派模型？
+        　　你解释完了以后，可能会继续问你，为什么Java的类加载器要使用双亲委派模型？
+        　　你回答完以后，可能会继续问你如何自定义自己的类加载器，自己的类加载器和Java自带的类加载器关系如何处理？
+    　　
+        再来一个关于内存的连环炮。
+            首先肯定就是问你内存分为哪几部分，这些部分分别都存储哪些数据？
+        　　然后继续问你一个对象从创建到销毁都是怎么在这些部分里存活和转移的？
+        　　接着可能会问你，内存的哪些部分会参与GC的回收？
+        　　完事以后，可能还会问你Java的内存模型是怎么设计的？
+        　　你回答了以后，还会继续问你为什么要这么设计？
+        　　问完以后，还可能会让你结合内存模型的设计谈谈volatile关键字的作用？
+        　　你在谈的时候，肯定会提到可见性，那么接着可见性这三个字，还可以继续问你并发的内容。
+        　　基本上Java语言本身以及语言稍微高级点的内容就是以上部分，如果你能把以上四部分了解的非常透彻，那基本上Java这部分就没啥问题了，因为光以上的内容就够你跟面试官聊很久了。你聊这些聊得久了，自然问你其它问题的时间就会短点。
+        　　你从LZ写这些问题的过程也应该能感受出来，很多时候，面试官都是顺着一条线一路问下去的，如果你觉得这条线你不熟悉的话，就要及时拐弯，引导面试官去问其它方面的问题。千万不要一直往下深入，直到自己跳不出来为止，那就尴了个尬了。
+    
+    　　2、讲述自己的项目，并在中间穿插着问题
+            这一部分是面试过程中必问，也是聊得最久的一个阶段。除非你前面的语言部分非常扎实，扎实到面试官问了一两个小时，依旧没有探出你对语言本身的了解到底有多深。否则的话，你一定逃不过自己的项目这一关，而且一般情况下聊得时间不会太短。
+        　　这一部分内容，一般的模式就是你自己去讲你做过的项目，然后面试官会冷不丁的让你去解释其中某一部分，比如让你解释当时为什么要这么做，或者问你现在觉得有没有更好的办法。而这些穿插的问题，大部分与你的项目所用到的技术有关。而你需要做的，就是充分、再充分的去总结自己做过的项目（尤其是最近的一两个项目），挖掘出一个甚至N个亮点，以备于到时候可以让面试官产生眼前一亮的感觉。如果你能达到这种效果的话，基本上离你成功就不远了。
+        　　这部分内容由于和每个人自己的经历息息相关，因此这里也没法列举可能问到的问题。这篇文章《程序员面经：面试前到底该不该刷题以及面试前该如何准备》是LZ之前写的，里面大概讨论了下如何在面试前总结，有兴趣的可以去了解一下。
+    
+    　　3、额外的加分项
+        　　上面两个阶段基本上是必问的，还有一些加分项。这些加分项中，有些内容面试官也会问你（比如TCP/IP协议、算法），但更多的是会先问你了解不了解，你了解的话再继续聊，不了解的话就直接略过了，不至于因为这种问题而直接把你打入地狱。
+        　　下面LZ列举一下这些加分项，如果可以的话，这些加分项还是要争取一下的。
+        　　1、计算机系统原理。
+        　　2、网络通信协议（TCP/IP，HTTP等）。
+        　　3、数据结构与算法。
+        　　4、著名开源项目的源码。
+        　　5、你自己有很棒的开源项目。
+        　　6、你的个人博客。
+        　　7、待评论区补充。
+    　　    这几项当中，对于前1-3项，如果你之前就比较了解，只是由于时间问题忘记了的话，还是可以临时抱佛脚一下的。至于后面4-6项，就需要你日常的积累了，不是一时半会儿能做到的。如果你平日里没有积累，那么后面这三个加分项只能抛弃了。
+    
+    　　4、与你职位相关的内容
+        　　其实这最后一项是对前面三项的补充，你应该尽量去主攻和你面试的职位相关的内容。比如你面试一个实时计算的职位，那么你的算法最好要厉害，对于著名的实时计算开源项目要熟悉，最好阅读过源码，而且还要对分布式系统有一定的见解。
+        　　因此，这个第4部分没有具体的内容，只是提醒你，如果你很明确自己的面试职位，最好在面试前准备的时候，尽量朝职位的需求方向靠拢，这样成功的可能性更大。
+            对于Java程序猿学习的建议 　　这一部分其实也算是今天的重点，这一部分用来回答很多群里的朋友所问过的问题，那就是LZ你是如何学习Java的，能不能给点建议？
+        　　今天LZ是打算来点干货，因此咱们就不说一些学习方法和技巧了，直接来谈每个阶段要学习的内容甚至是一些书籍。这一部分的内容，同样适用于一些希望转行到Java的同学。
+    
+###8.15 脉脉收集面试题
+    1.binlog同步延迟怎么解决
+    2.rocketmq如何保证消息一定被消费
+    3.数据的乐观锁和悲观锁使用场景是什么,分别有啥优缺点
+    4.什么是mysql的覆盖索引
+    5.线上定位问题的步骤
+    6.有个系统怎么去优化
+    7.怎么设计一个秒杀系统
+    8.怎么解决超卖问题
+    9.二分查找的时间复杂度是多少
+    10.java层怎么限流
+    11.怎么设计一个类似elk的系统
+    12.docker有什么优点和缺点,有什么注意的,部署java服务有什么问题没
+    13.怎么设计一个orm框架
+    
+    
+    
     
     
 ## 9.网络IO/j2ee等基础
@@ -3905,6 +4061,46 @@
         2.请求头
         3.空行
         4.消息主体
+    14.TCP滑动窗口控制流量的原理
+        首先是第一次发送数据这个时候的窗口大小是根据链路带宽的大小来决定的。我们假设这个时候窗口的大小是3。这个时候接受方收到数据以后会
+        对数据进行确认告诉发送方我下次希望手到的是数据是多少。这里我们看到接收方发送的ACK=3(这是发送方发送序列2的回答确认，下一次接收方
+        期望接收到的是3序列信号)。这个时候发送方收到这个数据以后就知道我第一次发送的3个数据对方只收到了2个。就知道第3个数据对方没有收到。
+        下次在发送的时候就从第3个数据开始发。这个时候窗口大小就变成了2 。 
+        
+        看到接收方发送的ACK是5就表示他下一次希望收到的数据是5，发送方就知道我刚才发送的2个数据对方收了这个时候开始发送第5个数据。 
+        这就是滑动窗口的工作机制，当链路变好了或者变差了这个窗口还会发生变话，并不是第一次协商好了以后就永远不变了。
+        
+        滑动窗口协议 
+            滑动窗口协议，是TCP使用的一种流量控制方法。该协议允许发送方在停止并等待确认前可以连续发送多个分组。由于发送方不必每发一个分组就停下来等待确认，因此该协议可以加速数据的传输。 
+            只有在接收窗口向前滑动时（与此同时也发送了确认），发送窗口才有可能向前滑动。    
+            收发两端的窗口按照以上规律不断地向前滑动，因此这种协议又称为滑动窗口协议。    
+            当发送窗口和接收窗口的大小都等于1时，就是停止等待协议。
+    15.网络拥塞
+         拥塞：即对资源的需求超过了可用的资源。若网络中许多资源同时供应不足，网络的性能就要明显变坏，整个网络的吞吐量随之负荷的增大而下降。
+        
+            拥塞控制：防止过多的数据注入到网络中，这样可以使网络中的路由器或链路不致过载。拥塞控制所要做的都有一个前提：网络能够承受现有的网络负荷。
+            拥塞控制是一个全局性的过程，涉及到所有的主机、路由器，以及与降低网络传输性能有关的所有因素。
+        
+            流量控制：指点对点通信量的控制，是端到端正的问题。流量控制所要做的就是抑制发送端发送数据的速率，以便使接收端来得及接收。
+        
+            拥塞控制代价：需要获得网络内部流量分布的信息。在实施拥塞控制之前，还需要在结点之间交换信息和各种命令，以便选择控制的策略
+            和实施控制。这样就产生了额外的开销。拥塞控制还需要将一些资源分配给各个用户单独使用，使得网络资源不能更好地实现共享。
+        
+        2. 几种拥塞控制方法
+            慢开始( slow-start )、拥塞避免( congestion avoidance )、快重传( fast retransmit )和快恢复( fast recovery )。
+    16.粘包
+        TCP粘包是指发送方发送的若干包数据到接收方接收时粘成一包，从接收缓冲区看，后一包数据的头紧接着前一包数据的尾。
+        如何处理粘包现象
+        　　（1）发送方
+        　　对于发送方造成的粘包现象，我们可以通过关闭Nagle算法来解决，使用TCP_NODELAY选项来关闭Nagle算法。
+        　　（2）接收方
+        　　遗憾的是TCP并没有处理接收方粘包现象的机制，我们只能在应用层进行处理。
+        　　（3）应用层处理
+        　　应用层的处理简单易行！并且不仅可以解决接收方造成的粘包问题，还能解决发送方造成的粘包问题。
+        　　解决方法就是循环处理：应用程序在处理从缓存读来的分组时，读完一条数据时，就应该循环读下一条数据，直到所有的数据都被处理；但是如何判断每条数据的长度呢？
+        　　两种途径：
+        　　　　1）格式化数据：每条数据有固定的格式（开始符、结束符），这种方法简单易行，但选择开始符和结束符的时候一定要注意每条数据的内部一定不能出现开始符或结束符；
+        　　　　2）发送长度：发送每条数据的时候，将数据的长度一并发送，比如可以选择每条数据的前4位是数据的长度，应用层处理时可以根据长度来判断每条数据的开始和结束。
         
 ###结束
     
@@ -4131,6 +4327,76 @@
     
 ## 11.java IO NIO
 
+###目录
+    1.NIO和IO的主要区别
+        1、面向流与面向缓冲
+        2、阻塞与非阻塞IO
+        3、选择器（Selectors）
+        
+    2.直接缓冲区与非直接缓冲器有什么区别
+        非直接缓冲区：通过allocate()分配缓冲区，将缓冲区建立在JVM的内存中,便于回收
+        直接缓冲区：  内核地址空间和用户地址空间之间形成了一个物理内存映射文件，减少了之间的copy过程。
+                    存在风险：用户不易控制、GC
+        对于NIO来说，缓存可以使用DirectByteBuffer和HeapByteBuffer。如果使用了DirectByteBuffer，一般来说可以减少一次系统空间到
+        用户空间的拷贝。但Buffer创建和销毁的成本更高，更不宜维护，一般用来读取大文件时使用。
+        
+    3.NIO三个核心对象
+          通道(Channel)、缓冲区(Buffer)和选择器(Selector)
+          Selector轮询是阻塞的，而真正的I/O是异步非阻塞的。
+        
+    4.Reactor多线程模型
+        （1）有专门一个NIO线程-Acceptor线程用于监听服务端，接收客户端的TCP连接请求
+        （2）网络IO操作-读、写等由一个NIO线程池负责，线程池可以采用标准的JDK线程池实现，它包含一个任务队列和N个可用的线程，
+            由这些NIO线程负责消息的读取、解码、编码和发送。
+        （3）一个NIO线程可以同时处理N条链路，但是一个链路只对应一个NIO线程，防止发生并发操作问题。
+            由于单独一个Acceptor线程可能会存在性能不中的问题，所以需要主从Reactor模型。
+            服务端用于接收客户端的不再是一个单独的NIO线程，而是一个独立的NIO线程池。
+             
+    5.NIO中， 如果不显式的调用System.gc()那会出现什么问题？
+        如果DirectByteBuffer的空间够用，那么System.gc()是不会触发FullGC的。也就是说在空间不够用时，显示调用才能进行回收，
+            如果不显式调用，那只能是抛出内存异常了。
+        在垃圾收集时，虽然虚拟机会对DirectMemory进行回收，但是DirectMemory却不像新生代和老年代那样，发现空间不足了就通知
+            收集器进行垃圾回收，它只能等待老年代满了后FullGC，然后“顺便地”帮它清理掉内存中废弃的对象。否则，只能等到抛出内存
+            溢出异常时，在catch块里调用System.gc()。
+            
+            DirectByteBuffer通过unsafe.allocateMemory申请堆外内存，并在ByteBuffer的address变量中维护指向该内存的地址。
+            unsafe.setMemory(base, size, (byte) 0)方法把新申请的内存数据清零。
+            
+    6.selector一定要非常清楚它的职责和实现原理。
+    
+    7.其实NIO的核心是IO线程池，一定要记住这个关键点。有的时候，面试官可能也会问你IO包的设计模式（装饰器模式），为什么要这样设计？
+       
+    8.epoll     
+    https://www.cnblogs.com/lojunren/p/3856290.html
+        新建epoll描述符==epoll_create()
+        epoll_ctrl(epoll描述符，添加或者删除所有待监控的连接)
+        返回的活跃连接 ==epoll_wait（ epoll描述符 ）
+        
+    9.BIO、NIO和AIO的区别
+        同步阻塞IO（BIO）
+            我们熟知的Socket编程就是BIO，一个socket连接一个处理线程（这个线程负责这个Socket连接的一系列数据传输操作）。
+            阻塞的原因在于：操作系统允许的线程数量是有限的，多个socket申请与服务端建立连接时，服务端不能提供相应数量的处理线程，
+            没有分配到处理线程的连接就会阻塞等待或被拒绝。
+            
+        同步非阻塞IO（NIO）
+             New IO是对BIO的改进，基于Reactor模型。我们知道，一个socket连接只有在特点时候才会发生数据传输IO操作，大部分时间这个
+             “数据通道”是空闲的，但还是占用着线程。NIO作出的改进就是“一个请求一个线程”，在连接到服务端的众多socket中，只有需要进行IO
+             操作的才能获取服务端的处理线程进行IO。这样就不会因为线程不够用而限制了socket的接入。客户端的socket连接到服务端时，就会
+             在事件分离器注册一个 IO请求事件 和 IO 事件处理器。在该连接发生IO请求时，IO事件处理器就会启动一个线程来处理这个IO请求，
+             不断尝试获取系统的IO的使用权限，一旦成功（即：可以进行IO），则通知这个socket进行IO数据传输。
+             
+        异步阻塞IO（AIO）
+           NIO是同步的IO，是因为程序需要IO操作时，必须获得了IO权限后亲自进行IO操作才能进行下一步操作。AIO是对NIO的改进
+           （所以AIO又叫NIO.2），它是基于Proactor模型的。每个socket连接在事件分离器注册 IO完成事件 和 IO完成事件处理器。
+           程序需要进行IO时，向分离器发出IO请求并把所用的Buffer区域告知分离器，分离器通知操作系统进行IO操作，操作系统自己不断
+           尝试获取IO权限并进行IO操作（数据保存在Buffer区），操作完成后通知分离器；分离器检测到 IO完成事件，则激活 IO完成事件
+           处理器，处理器会通知程序说“IO已完成”，程序知道后就直接从Buffer区进行数据的读写。
+ 
+           也就是说：AIO是发出IO请求后，由操作系统自己去获取IO权限并进行IO操作；NIO则是发出IO请求后，由线程不断尝试获取IO权限，
+           获取到后通知应用程序自己进行IO操作。
+
+###结束
+
     https://mp.weixin.qq.com/s?__biz=MzU4NDQ4MzU5OA==&mid=2247483956&idx=1&sn=57692bc5b7c2c6dfb812489baadc29c9&chksm=fd985455caefdd4331d828d8e89b22f19b304aa87d6da73c5d8c66fcef16e4c0b448b1a6f791&scene=21#wechat_redirect
     
     比较完整
@@ -4200,10 +4466,105 @@
         
         非直接缓冲区：通过allocate()分配缓冲区，将缓冲区建立在JVM的内存中 
             
-    https://www.cnblogs.com/mazhimazhi/p/9632545.html   (必读)
+    https://www.cnblogs.com/mazhimazhi/p/9632545.html   (必读,里面有demo)
     异步写非阻塞的时候,数据没写完,咋个办
     
+    NIO三个核心对象
+        通道(Channel)、缓冲区(Buffer)和选择器(Selector)
+        具体说就是Selector会不断轮询注册在其上的Channel，如果某个Channel上有新的TCP连接，读或者写事件，这个Channel就处于就绪状态，
+        会被Selector轮询出来，然后通过SelectorKey可以获取就绪Channel的集合，进行后续I/O操作。
+    
+    *Java Reactor模式 异步非阻塞IO Reactor多线程模型
+        （1）有专门一个NIO线程-Acceptor线程用于监听服务端，接收客户端的TCP连接请求
+        （2）网络IO操作-读、写等由一个NIO线程池负责，线程池可以采用标准的JDK线程池实现，它包含一个任务队列和N个可用的线程，
+            由这些NIO线程负责消息的读取、解码、编码和发送。
+        （3）一个NIO线程可以同时处理N条链路，但是一个链路只对应一个NIO线程，防止发生并发操作问题。
+            由于单独一个Acceptor线程可能会存在性能不中的问题，所以需要主从Reactor模型。
+            服务端用于接收客户端的不再是一个单独的NIO线程，而是一个独立的NIO线程池。 
+    
+    NIO中， 如果不显式的调用System.gc()那会出现什么问题？
+        DirectBuffer是分配在操作系统的内存中的，所以省去了应用程序到内核空间的拷贝，而HeapBuffer是分配到堆上的，所以便于垃圾回收。
+        DirectBuffer的GC规则与堆对象的回收规则是一样的，只有垃圾对象才会被回收，而判定是否为垃圾对象依然是根据引用树中的存活节点来判定。
+        如果DirectByteBuffer的空间够用，那么System.gc()是不会触发FullGC的。也就是说在空间不够用时，显示调用才能进行回收，
+            如果不显式调用，那只能是抛出内存异常了。
+        在垃圾收集时，虽然虚拟机会对DirectMemory进行回收，但是DirectMemory却不像新生代和老年代那样，发现空间不足了就通知收集器
+            进行垃圾回收，它只能等待老年代满了后FullGC，然后“顺便地”帮它清理掉内存中废弃的对象。否则，只能等到抛出内存溢出异常时，
+            在catch块里调用System.gc()。
+        
+    channel
+        NIO把它支持的I/O对象抽象为Channel，Channel又称“通道”，类似于原I/O中的流（Stream），但有所区别：
+        1、流是单向的，通道是双向的，可读可写。
+        2、流读写是阻塞的，通道可以异步读写。
+        3、流中的数据可以选择性的先读到缓存中，通道的数据总是要先读到一个缓存中，或从缓存中写入
+        
+    Selector
+        如果一个 Channel 要注册到 Selector 中, 那么这个 Channel 必须是非阻塞的, 即channel.configureBlocking(false);
+        因为 Channel 必须要是非阻塞的, 因此 FileChannel 是不能够使用选择器的, 因为 FileChannel 都是阻塞的.
+        
+        在使用 Channel.register()方法时, 第二个参数指定了我们对 Channel 的什么类型的事件感兴趣
+            Connect, 即连接事件(TCP 连接), 对应于SelectionKey.OP_CONNECT
+            Accept, 即确认事件, 对应于SelectionKey.OP_ACCEPT
+            Read, 即读事件, 对应于SelectionKey.OP_READ, 表示 buffer 可读.
+            Write, 即写事件, 对应于SelectionKey.OP_WRITE, 表示 buffer 可写.
+        
+        Selector 的基本使用流程
+            1.通过 Selector.open() 打开一个 Selector.
+            2.将 Channel 注册到 Selector 中, 并设置需要监听的事件(interest set)
+            3.不断重复:
+                调用 select() 方法
+                调用 selector.selectedKeys() 获取 selected keys
+                迭代每个 selected key:
+                    *从 selected key 中获取 对应的 Channel 和附加信息(如果有的话)
+                    *判断是哪些 IO 事件已经就绪了, 然后处理它们. 如果是 OP_ACCEPT 事件, 则调用 "SocketChannel clientChannel = ((ServerSocketChannel) key.channel()).accept()" 获取 SocketChannel, 并将它设置为 非阻塞的, 然后将这个 Channel 注册到 Selector 中.
+                    *根据需要更改 selected key 的监听事件.
+                    *将已经处理过的 key 从 selected keys 集合中删除.
+                    
+        
+    
 ## 12.spring
+
+###目录
+    1.bean生命周期
+        ApplicationContext容器中，Bean的生命周期流程如上图所示，流程大致如下：
+            1.首先容器启动后，会对scope为singleton且非懒加载的bean进行实例化，
+            2.按照Bean定义信息配置信息，注入所有的属性，
+            3.如果Bean实现了BeanNameAware接口，会回调该接口的setBeanName()方法，传入该Bean的id，此时该Bean就获得了自己在配置文件中的id，
+            4.如果Bean实现了BeanFactoryAware接口,会回调该接口的setBeanFactory()方法，传入该Bean的BeanFactory，这样该Bean就获得了自己所在的BeanFactory，
+            5.如果Bean实现了ApplicationContextAware接口,会回调该接口的setApplicationContext()方法，传入该Bean的ApplicationContext，这样该Bean就获得了自己所在的ApplicationContext，
+            6.如果有Bean实现了BeanPostProcessor接口，则会回调该接口的postProcessBeforeInitialzation()方法，
+            7.如果Bean实现了InitializingBean接口，则会回调该接口的afterPropertiesSet()方法，
+            8.如果Bean配置了init-method方法，则会执行init-method配置的方法，
+            9.如果有Bean实现了BeanPostProcessor接口，则会回调该接口的postProcessAfterInitialization()方法，
+            10.经过流程9之后，就可以正式使用该Bean了,对于scope为singleton的Bean,Spring的ioc容器中会缓存一份该bean的实例，而对于scope为prototype的Bean,每次被调用都会new一个新的对象，期生命周期就交给调用方管理了，不再是Spring容器进行管理了
+            11.容器关闭后，如果Bean实现了DisposableBean接口，则会回调该接口的destroy()方法，
+            12.如果Bean配置了destroy-method方法，则会执行destroy-method配置的方法，至此，整个Bean的生命周期结束
+    
+    2.Spring的BeanFactory和ApplicationContext的区别?
+            ApplicationContext是BeanFactory的子类
+            1.由于ApplicationContext扩展了MessageResource接口，因而具有消息处理的能力(i18N)，具体spring如何使用国际化
+            2.即当ApplicationContext中发布一个事件的时，所有扩展了ApplicationListener的Bean都将会接受到这个事件，并进行相应的处理。  
+            3.ApplicationContext扩展了ResourceLoader(资源加载器)接口，从而可以用来加载多个Resource，而BeanFactory是没有扩展ResourceLoader  
+            4.ApplicationContext能以声明的方式创建，如使用ContextLoader。当然你也可以使用ApplicationContext的实现之一来以编程的方式创建ApplicationContext实例 。  
+            5.其它区别  
+              1).BeanFactroy采用的是延迟加载形式来注入Bean的，即只有在使用到某个Bean时(调用getBean())，才对该Bean进行加载实例化，这样，我们就不能发现一些存在的Spring的配置问题。而ApplicationContext则相反，它是在容器启动时，一次性创建了所有的Bean。这样，在容器启动时，我们就可以发现Spring中存在的配置错误。  
+              2).BeanFactory和ApplicationContext都支持BeanPostProcessor、BeanFactoryPostProcessor的使用，但两者之间的区别是：BeanFactory需要手动注册，而ApplicationContext则是自动注册
+  
+    3.spring事件
+        1.ContextRefreshedEvent
+        2.ContextStartedEvent
+        3.ContextStoppedEvent
+        4.ContextClosedEvent
+        
+    4.Bean 的作用域
+          singleton	该作用域将 bean 的定义的限制在每一个 Spring IoC 容器中的一个单一实例(默认)。
+          prototype	该作用域将单一 bean 的定义限制在任意数量的对象实例。
+          request	该作用域将 bean 的定义限制为 HTTP 请求。只在 web-aware Spring ApplicationContext 的上下文中有效。
+          session	该作用域将 bean 的定义限制为 HTTP 会话。 只在web-aware Spring ApplicationContext的上下文中有效。
+          global-session	该作用域将 bean 的定义限制为全局 HTTP 会话。只在 web-aware Spring ApplicationContext 的上下文中有效。
+        
+        
+        
+###结束
 
     *bean生命周期
     https://www.jianshu.com/p/3944792a5fff
@@ -4315,16 +4676,6 @@
         session	该作用域将 bean 的定义限制为 HTTP 会话。 只在web-aware Spring ApplicationContext的上下文中有效。
         global-session	该作用域将 bean 的定义限制为全局 HTTP 会话。只在 web-aware Spring ApplicationContext 的上下文中有效。
         
-    Bean 的生命周期
-    https://github.com/crossoverJie/JCSprout/blob/master/MD/spring/spring-bean-lifecycle.md
-    
-        init-method
-        destroy-method
-        //默认
-        default-init-method
-        default-destroy-method
-        
-        
     Spring——Bean 后置处理器
         在初始化 bean 的之前和之后实现更复杂的逻辑，因为你有两个访问内置 bean 对象的后置处理程序的方法。
         public class InitHelloWorld implements BeanPostProcessor {
@@ -4350,16 +4701,12 @@
      
          ContextRefreshedEvent
          ApplicationContext 被初始化或刷新时，该事件被发布。这也可以在 ConfigurableApplicationContext 接口中使用 refresh() 方法来发生。
-         
          ContextStartedEvent
          当使用 ConfigurableApplicationContext 接口中的 start() 方法启动 ApplicationContext 时，该事件被发布。你可以调查你的数据库，或者你可以在接受到这个事件后重启任何停止的应用程序。
-         
          ContextStoppedEvent
          当使用 ConfigurableApplicationContext 接口中的 stop() 方法停止 ApplicationContext 时，发布这个事件。你可以在接受到这个事件后做必要的清理的工作。
-         
          ContextClosedEvent
          当使用 ConfigurableApplicationContext 接口中的 close() 方法关闭 ApplicationContext 时，该事件被发布。一个已关闭的上下文到达生命周期末端；它不能被刷新或重启。
-         
          RequestHandledEvent
          这是一个 web-specific 事件，告诉所有 bean HTTP 请求已经被服务。
      
