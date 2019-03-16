@@ -4562,7 +4562,253 @@
           session	该作用域将 bean 的定义限制为 HTTP 会话。 只在web-aware Spring ApplicationContext的上下文中有效。
           global-session	该作用域将 bean 的定义限制为全局 HTTP 会话。只在 web-aware Spring ApplicationContext 的上下文中有效。
         
+    5.动态代理
+        定义：给目标对象提供一个代理对象，并由代理对象控制对目标对象的引用
+        为什么要用代理
+            最最最主要的原因就是，在不改变目标对象方法的情况下对方法进行增强，比如，我们希望对方法的调用增加日志记录，鉴权
+            或者对方法的调用进行拦截，等等...
+            
+        既然有了静态代理，为什么需要动态代理呢
+            接口与代理类是1对1的，有多个接口需要代理，就需要新建多个代理类，繁琐，类爆炸。
+            
+        关于Jdk代理和Cglib代理，其优缺点主要在于：
+            Jdk代理生成的代理类只有一个，因而其编译速度是非常快的；而由于被代理的目标类是动态传入代理类中的，Jdk代理的执行效率相对
+            来说低一点，这也是Jdk代理被称为动态代理的原因；
+            Cglib代理需要为每个目标类生成相应的子类，因而在实际运行过程中，其可能会生成非常多的子类，过多的子类始终不是太好的，因为
+            这影响了虚拟机编译类的效率；但由于在调用过程中，代理类的方法是已经静态编译生成了的，因而Cglib代理的执行效率相对来说高一些。
+        jdk动态代理
+            1.加强逻辑实现InvocationHandler接口,逻辑写在
+                public Object invoke(Object proxy, Method method, Object[] args)里面,持有被代理的对象
+                调用被代理对象方法method.invoke(target,args);
+            2.创建代理对象
+                DoSomething proxy = (DoSomething)Proxy.newProxyInstance(myDoSomething.getClass().getClassLoader(),
+                				new Class[]{DoSomething.class,Test2.class},
+                				invocationHandler);
+                		proxy.doSomething1();
+                		
+        cglib
+            1.加强逻辑实现MethodInterceptor接口,逻辑写在
+                public Object intercept(Object o, Method method, Object[] objects, MethodProxy methodProxy)里面
+                还可以实现CallbackFilter接口,过滤加强的方法
+                methodProxy.invokeSuper(o, objects);
+            2.创建Enhancer,设置
+                    enhancer.setSuperclass(this.target.getClass());
+                    // 回调方法
+                    enhancer.setCallback(this);
+                    // 创建代理
+                    return enhancer.create();
+    
+    6.spring包括哪些模块
+        1.核心容器（Core Container）
+            核心容器包括spring-core，spring-beans，spring-context，spring-context-support和spring-expression（SpEL，Spring表达式语言，Spring Expression Language）等模块。
+            spring-core和spring-beans模块是Spring框架的基础，包括控制反转和依赖注入等功能。BeanFactory是工厂模式的微妙实现，它移除了编码式单例的需要，并且可以把配置和依赖从实际编码逻辑中解耦。
+            Context（spring-context）模块是在Core和Bean模块的基础上建立起来的，它以一种类似于JNDI注册的方式访问对象。Context模块继承自Bean模块，并且添加了国际化（比如，使用资源束）、事件传播、资源加载和透明地创建上下文（比如，通过Servelet容器）等功能。Context模块也支持Java EE的功能，比如EJB、JMX和远程调用等。ApplicationContext接口是Context模块的焦点。spring-context-support提供了对第三方库集成到Spring上下文的支持，比如缓存（EhCache, Guava, JCache）、邮件（JavaMail）、调度（CommonJ, Quartz）、模板引擎（FreeMarker, JasperReports, Velocity）等。
+            spring-expression模块提供了强大的表达式语言用于在运行时查询和操作对象图。它是JSP2.1规范中定义的统一表达式语言的扩展，支持set和get属性值、属性赋值、方法调用、访问数组集合及索引的内容、逻辑算术运算、命名变量、通过名字从Spring IoC容器检索对象，还支持列表的投影、选择以及聚合等。
+        2.AOP和检测（Instrumentation）
+            spring-aop模块提供了面向切面编程（AOP）的实现，可以定义诸如方法拦截器和切入点等，从而使实现功能的代码彻底的解耦出来。使用源码级的元数据，可以用类似于.Net属性的方式合并行为信息到代码中。
+            spring-aspects模块提供了对AspectJ的集成。
+            spring-instrument模块提供了对检测类的支持和用于特定的应用服务器的类加载器的实现。spring-instrument-tomcat模块包含了用于tomcat的Spring检测代理。
+        3.消息处理（messaging）
+            Spring 4 包含的spring-messaging模块是从Spring集成项目的关键抽象中提取出来的，这些项目包括Message、MessageChannel、MessageHandler和其它服务于消息处理的项目。这个模块也包含一系列的注解用于映射消息到方法，这类似于Spring MVC基于编码模型的注解。
+        4.数据访问与集成
+            数据访问与集成层包含JDBC、ORM、OXM、JMS和事务模块。 
+            （译者注：JDBC=Java Data Base Connectivity，ORM=Object Relational Mapping，OXM=Object XML Mapping，JMS=Java Message Service）
+            spring-jdbc模块提供了JDBC抽象层，它消除了冗长的JDBC编码和对数据库供应商特定错误代码的解析。
+            spring-tx模块支持编程式事务和声明式事务，可用于实现了特定接口的类和所有的POJO对象。 
+            （译者注：编程式事务需要自己写beginTransaction()、commit()、rollback()等事务管理方法，声明式事务是通过注解或配置由spring自动处理，编程式事务粒度更细）
+            spring-orm模块提供了对流行的对象关系映射API的集成，包括JPA、JDO和Hibernate等。通过此模块可以让这些ORM框架和spring的其它功能整合，比如前面提及的事务管理。
+            spring-oxm模块提供了对OXM实现的支持，比如JAXB、Castor、XML Beans、JiBX、XStream等。
+            spring-jms模块包含生产（produce）和消费（consume）消息的功能。从Spring 4.1开始，集成了spring-messaging模块。
+        5.Web
+            Web层包括spring-web、spring-webmvc、spring-websocket、spring-webmvc-portlet等模块。
+            spring-web模块提供面向web的基本功能和面向web的应用上下文，比如多部分（multipart）文件上传功能、使用Servlet监听器初始化IoC容器等。它还包括HTTP客户端以及Spring远程调用中与web相关的部分。
+            spring-webmvc模块（即Web-Servlet模块）为web应用提供了模型视图控制（MVC）和REST Web服务的实现。Spring的MVC框架可以使领域模型代码和web表单完全地分离，且可以与Spring框架的其它所有功能进行集成。
+            spring-webmvc-portlet模块（即Web-Portlet模块）提供了用于Portlet环境的MVC实现，并反映了spring-webmvc模块的功能。
+        6.Test
+            spring-test模块通过JUnit和TestNG组件支持单元测试和集成测试。它提供了一致性地加载和缓存Spring上下文，也提供了用于单独测试代码的模拟对象（mock object）。                    
+    
+    7.springMVC流程
+        流程说明（重要）：
+        （1）客户端（浏览器）发送请求，直接请求到 DispatcherServlet。
+        （2）DispatcherServlet 根据请求信息调用 HandlerMapping，解析请求对应的 Handler。
+        （3）解析到对应的 Handler（也就是我们平常说的 Controller 控制器）后，开始由 HandlerAdapter 适配器处理。
+        （4）HandlerAdapter 会根据 Handler 来调用真正的处理器开处理请求，并处理相应的业务逻辑。
+        （5）处理器处理完业务后，会返回一个 ModelAndView 对象，Model 是返回的数据对象，View 是个逻辑上的 View。
+        （6）ViewResolver 会根据逻辑 View 查找实际的 View。
+        （7）DispaterServlet 把返回的 Model 传给 View（视图渲染）。
+        （8）把 View 返回给请求者（浏览器）
         
+    8.Spirng IoC容器的初始化过程
+          https://www.cnblogs.com/chenjunjie12321/p/6124649.html
+          分为三步：
+          
+          1.Resource定位（Bean的定义文件定位）
+          2.将Resource定位好的资源载入到BeanDefinition
+          3.将BeanDefiniton注册到容器中
+          
+          管理bean的生命周期
+          
+          总结：IoC容器的初始化过程就是将xml配置资源的信息抽象到BeanDefinition信息对象中，再将BeanDefinition设置到基本容器的map中，
+          BeanDefinition中的信息是容器建立依赖反转的基础，IoC容器的作用就是对这些信息进行处理和维护。
+          
+          refresh()方法主要为IoC容器Bean的生命周期管理提供条件，Spring IoC容器载入Bean定义资源文件从其子类容器的refreshBeanFactory()
+          方法启动，所以整个refresh()中“ConfigurableListableBeanFactory beanFactory =obtainFreshBeanFactory();”这句以后代码
+          的都是注册容器的信息源和生命周期事件，载入过程就是从这句代码启动。
+          
+           refresh()方法的作用是：在创建IoC容器前，如果已经有容器存在，则需要把已有的容器销毁和关闭，以保证在refresh之后使用的是新建立
+          起来的IoC容器。refresh的作用类似于对IoC容器的重启，在新建立好的容器中对容器进行初始化，对Bean定义资源进行载入
+    9.@autowiring实现过程
+        a.    对Bean的属性迭代调用getBean方法，完成依赖Bean的初始化和依赖注入。
+        b.    将依赖Bean的属性引用设置到被依赖的Bean属性上。
+        c.     将依赖Bean的名称和被依赖Bean的名称存储在IoC容器的集合中。
+        
+    10.说说Spring事务什么情况下才会回滚
+        当所拦截的方法有指定异常抛出，事务才会自动进行回滚。默认情况下是捕获到方法的RuntimeException异常，也就是说抛出只要属于运行时
+        的异常（即RuntimeException及其子类）都能回滚；但当抛出一个不属于运行时异常时，事务是不会回滚的。如果是其他异常想要实现回滚，
+        可以进行配置。
+    
+    11.说说Spring事务的传播属性
+        *同一个类种的事务,要么都声明要事务，要么分开成两个类，要么直接在方法里使用编程式事务，那么一切OK。被同一个类种的方法调用的方法上加事务会失效
+        
+       事务的传播性一般在事务嵌套时候使用，比如在事务A里面调用了另外一个使用事务的方法，那么这俩个事务是各自作为独立的事务执行提交，
+       还是内层的事务合并到外层的事务一块提交那，这就是事务传播性要确定的问题。spring支持7种事务传播行为：
+       
+       *(这个是默认)PROPAGATION_REQUIRED – 支持当前事务，如果当前没有事务，就新建一个事务。这是最常见的选择。
+       PROPAGATION_SUPPORTS – 支持当前事务，如果当前没有事务，就以非事务方式执行。
+       PROPAGATION_MANDATORY – 支持当前事务，如果当前没有事务，就抛出异常。
+       
+       *(这个防止死锁)PROPAGATION_REQUIRES_NEW – 新建事务，如果当前存在事务，把当前事务挂起。新建的事务将和被挂起的事务没有任何关系，
+       是两个独立的事务，外层事务失败回滚之后，不能回滚内层事务执行的结果，内层事务失败抛出异常，外层事务捕获，也可以不处理回滚操作
+       
+       PROPAGATION_NOT_SUPPORTED – 以非事务方式执行操作，如果当前存在事务，就把当前事务挂起。
+       PROPAGATION_NEVER – 以非事务方式执行，如果当前存在事务，则抛出异常。
+       PROPAGATION_NESTED – 如果当前存在事务，则在嵌套事务内执行。如果当前没有事务，则进行与PROPAGATION_REQUIRED类似的操作。
+       备注：常用的两个事务传播属性是1和4，即PROPAGATION_REQUIRED，PROPAGATION_REQUIRES_NEW
+       
+    *12.说说Spring事务的隔离性
+       事务的隔离性是指多个事务并发执行的时候相互之间不受到彼此的干扰。
+       
+       事务的隔离级别也分为四种，由低到高依次分别为：read uncommited（读未提交）、read commited（读提交）、read repeatable（读重复）、
+       serializable（序列化），这四个级别可以逐个解决脏读、不可重复读、幻读这几类问题。
+       
+       1.脏读
+            A事务读取B事务尚未提交的数据，此时如果B事务发生错误并执行回滚操作，那么A事务读取到的数据就是脏数据。
+       2.不可重复读（前后多次读取，数据内容不一致）
+            事务A在执行读取操作，由整个事务A比较大，前后读取同一条数据需要经历很长的时间 。而在事务A第一次读取数据，比如此时读取了
+            小明的年龄为20岁，事务B执行更改操作，将小明的年龄更改为30岁，此时事务A第二次读取到小明的年龄时，发现其年龄是30岁，和之前
+            的数据不一样了，也就是数据不重复了，系统不可以读取到重复的数据，成为不可重复读。
+       3.幻读（前后多次读取，数据总量不一致）
+            事务A在执行读取操作，需要两次统计数据的总量，前一次查询数据总量后，此时事务B执行了新增数据的操作并提交后，这个时候事务A
+            读取的数据总量和之前统计的不一样，就像产生了幻觉一样，平白无故的多了几条数据，成为幻读。
+       
+       1.read uncommited：是最低的事务隔离级别，它允许另外一个事务可以看到这个事务未提交的数据。(脏读问题,读取到未提交的数据)
+       2.read commited：保证一个事物提交后才能被另外一个事务读取。另外一个事务不能读取该事物未提交的数据。()
+       3.repeatable read：这种事务隔离级别可以防止脏读，不可重复读。但是可能会出现幻象读。它除了保证一个事务不能被另外一个事务读取未提交的数据之外还避免了以下情况产生（不可重复读）。
+       4.serializable：这是花费最高代价但最可靠的事务隔离级别。事务被处理为顺序执行。除了防止脏读，不可重复读之外，还避免了幻读。
+       5.DEFAULT 这是一个PlatfromTransactionManager默认的隔离级别，使用数据库默认的事务隔离级别.(mysql默认 repeatalbe read)
+
+    13.说说Spring事务的特性
+       事务特性分为四个：原子性（Atomicity）、一致性（Consistency）、隔离性（Isolation）、持续性（Durability）简称ACID。
+       
+       原子性（Atomicity）:事务是数据库逻辑工作单元，事务中包含的操作要么都执行成功，要么都执行失败。
+       一致性（Consistency）：事务执行的结果必须是使数据库数据从一个一致性状态变到另外一种一致性状态。当事务执行成功后就说数据库处于一致性状态。如果在执行过程中发生错误，这些未完成事务对数据库所做的修改有一部分已写入物理数据库，这是数据库就处于不一致状态。
+       隔离性（Isolation）：一个事务的执行过程中不能影响到其他事务的执行，即一个事务内部的操作及使用的数据对其他事务是隔离的，并发执行各个事务之间无不干扰。
+       持续性（Durability）：即一个事务执一旦提交，它对数据库数据的改变是永久性的。之后的其它操作不应该对其执行结果有任何影响。
+              
+    14.IOC（依赖注入）方式
+       构造器依赖注入：构造器依赖注入通过容器触发一个类的构造器来实现的，该类有一系列参数，每个参数代表一个对其他类的依赖。
+       Setter方法注入：Setter方法注入是容器通过调用无参构造器或无参static工厂方法实例化bean之后，调用该bean的setter方法，即实现了基于setter的依赖注入。
+       用构造器参数实现强制依赖，setter方法实现可选依赖。
+       
+    15.Springboot启动过程
+    https://blog.csdn.net/u010811939/article/details/80592461
+       构造SpringApplication的实例
+       调用SpringApplication.run()方法
+           构造SpringApplicationRunListeners 实例
+           发布ApplicationStartedEvent事件
+           SpringApplicationRunListeners 实例准备环境信息
+           创建ApplicationContext对象
+           ApplicationContext实例准备环境信息
+           刷新的上下文
+                ⑴.准备刷新的上下文环境 
+                ⑵.初始化BeanFactory 
+                ⑶.对BeanFactory进行各种功能填充 
+                ⑷.子类覆盖方法做额外的处理 
+                ⑸.激活各种BeanFactory处理器 
+                ⑹.注册拦截Bean创建的Bean处理，这里只是注册，真正调用是再拿去Bean的时候 
+                ⑺.为上下文初始化Message源，即不同语言的消息体，国际化处理 
+                ⑻.初始化应用消息广播器，并放到applicationEventMulticaster bean中 
+                ⑼.留给子类来初始化其他bean 
+                ⑽.在所有注册的bean中查找Listener bean，注册到消息广播中 
+                ⑾.初始化剩下的单实例（非惰性） 
+                ⑿.完成刷新过程，通知生命周期处理器lifecycleProcessor刷新过程，同时发出ContextRefreshEvent通知别人
+
+    16.springboot常用注解
+        @SpringBootApplication = (默认属性)@Configuration + @EnableAutoConfiguration + @ComponentScan。
+        @Configuration：提到@Configuration就要提到他的搭档@Bean。使用这两个注解就可以创建一个简单的spring配置类，可以用来替代相应的xml配置文件。
+        @EnableAutoConfiguration：能够自动配置spring的上下文，试图猜测和配置你想要的bean类，通常会自动根据你的类路径和你的bean定义自动配置
+        @AutoConfigureAfter：在指定的配置类初始化后再加载 
+        @AutoConfigureBefore：在指定的配置类初始化前加载 
+        @AutoConfigureOrder：数越小越先初始化
+        @ComponentScan：会自动扫描指定包下的全部标有@Component的类，并注册成bean，当然包括@Component下的子注解@Service,@Repository,@Controller。
+        @Entity 对实体注释。任何Hibernate映射对象都要有这个注释
+        @Table声明此对象映射到数据库的数据表，通过它可以为实体指定表(table),目录(Catalog)和schema的名字。该注释不是必须的，如果没有则系统使用默认值(实体的短类名)。
+        @EnableScheduling开启计划任务
+            1@Scheduled:声明该方法是一个计划任务，fixedRate属性设置每隔固定时间执行
+            2cron属性：按照指定时间执行(11时28)cron事unix和类unix(linux)系统下的定时时间
+        @WebServlet，在 SpringBootApplication 上使用@ServletComponentScan 注解后，Servlet、Filter、Listener 可以直接通过 @WebServlet、@WebFilter、@WebListener 注解自动注册，无需其他代码。
+        @Transactional
+            解决Transactional注解不回滚:
+            1. 检查你方法是不是public的。
+            2. 你的异常类型是不是unchecked异常。@Transactional(rollbackFor=Exception.class)
+            类似的还有norollbackFor，自定义不回滚的异常。
+            3. 数据库引擎要支持事务，如果是mysql，注意表要使用支持事务的引擎，比如innodb，如果是myisam，事务是不起作用的。
+            4. 是否开启了对注解的解析
+            <tx:annotation-driven transaction-manager="transactionManager" proxy-target class="true"/>
+            5. spring是否扫描到你这个包，如下是扫描到org.test下面的包<context:component-scan base-package="org.test" ></context:component-scan>
+        @Controller 用来响应页面，@Controller必须配合模版来使用。
+        @RestController Spring4之后新加入的注解，原来返回json需要@ResponseBody和@Controller配合。
+        @RequestBody 将接收的json数据装载到实体类中。
+        @RequestMapping 配置url映射
+        @PathVaribale 获取url中的数据
+        @RequestParam 获取请求参数的值
+        @GetMapping 组合注解
+        @PostConstruct与@PreDestroy详解及实例
+            @PostConstruct注释的方法，会在构造方法之后，init方法之前进行调用。
+            只有一个方法可以使用此注释进行注解；
+            被注解方法不得有任何参数；
+            被注解方法返回值为void；
+            被注解方法不得抛出已检查异常；
+            被注解方法需是非静态方法；
+            此方法只会被执行一次；
+            PreDestroy 注释作为回调通知用于各方法，以表示该实例正处于被容器移除的过程中。用 PreDestroy 注释的方法通常用于释放它已持有的资源。
+        @PropertySource 注解可以从properties文件中，获取对应的key-value值，将其赋予变量；
+        @ConfigurationProperties的大致作用就是通过它可以把properties或者yml配置直接转成对象。
+        @RunWith：这个是指定使用的单元测试执行类，这里就指定的是SpringJUnit4ClassRunner.class；
+        @webservice:
+            类上加上@WebService注解
+            @WebMethod注解声明了这个方法是要发布出去的方法
+        @Resource 默认是按照名称来装配注入的，只有当找不到与名称匹配的bean才会按照类型来注入。它有两个属性是比较重要的:
+            ①. name: Spring 将 name 的属性值解析为 bean 的名称， 使用 byName 的自动注入策略
+            ②. type: Spring 将 type的属性值解析为 bean 的类型，使用 byType 的自动注入策略
+            注: 如果既不指定 name 属性又不指定 type 属性，Spring这时通过反射机制使用 byName 自动注入策略
+            @Resource 的装配顺序
+            　　1. 如果同时指定了 name 属性和 type 属性，那么 Spring 将从容器中找唯一匹配的 bean 进行装配，找不到则抛出异常
+                2. 如果指定了 name 属性值，则从容器中查找名称匹配的 bean 进行装配，找不到则抛出异常
+                3. 如果指定了 type 属性值，则从容器中查找类型匹配的唯一的 bean 进行装配，找不到或者找到多个都会抛出异常
+                4. 如果都不指定，则会自动按照 byName 方式进行装配， 如果没有匹配，则回退一个原始类型进行匹配，如果匹配则自动装配
+            @Autowried 默认是按照类型进行装配注入，默认情况下，它要求依赖对象必须存在，如果允许 null 值，可以设置它 required 为false。
+            　　如果我们想要按名称进行装配的话，可以添加一个 @Qualifier 注解解决。
+            
+            demo
+            @Autowried
+            @Qualifier("adminDAO")
+            private AdminDAO adminDAO;
+        @Async和@EnableAsync为异步注解，放到方法上，表示调用该方法的线程与此方法异步执行，需要配合注解使用。@EnableAsync放在启动类上，Async放在方法上。
+        @JsonInclude(Include.NON_NULL) 是springmvc中的标注，是为了控制返回的json字符串显示哪些字段。这里的设置是为null的字段不显示
+        @ConfigurationProperties(prefix = "sso") 可以在实体类中将properties文件的值注入到属性中。
+    
+      
         
 ###结束
 
@@ -4604,8 +4850,8 @@
     https://blog.csdn.net/tangtong1/article/details/51326887
 
     依赖注入（DI）和控制反转（IoC）
-    你可以把不相干组件组合在一起，从而组成一个完整的可以使用的应用。Spring根据设计模式编码出了非常优秀的代码，
-    所以可以直接集成到自己的应用中。因此，大量的组织机构都使用Spring来保证应用程序的健壮性和可维护性。
+        你可以把不相干组件组合在一起，从而组成一个完整的可以使用的应用。Spring根据设计模式编码出了非常优秀的代码，
+        所以可以直接集成到自己的应用中。因此，大量的组织机构都使用Spring来保证应用程序的健壮性和可维护性。
     
     Spring支持三种依赖注入方式，
         分别是属性（Setter方法）注入，构造注入和接口注入。
@@ -4745,61 +4991,40 @@
             
      *SpringMVC 流程
         流程说明（重要）：
-        
         （1）客户端（浏览器）发送请求，直接请求到 DispatcherServlet。
-        
         （2）DispatcherServlet 根据请求信息调用 HandlerMapping，解析请求对应的 Handler。
-        
         （3）解析到对应的 Handler（也就是我们平常说的 Controller 控制器）后，开始由 HandlerAdapter 适配器处理。
-        
         （4）HandlerAdapter 会根据 Handler 来调用真正的处理器开处理请求，并处理相应的业务逻辑。
-        
         （5）处理器处理完业务后，会返回一个 ModelAndView 对象，Model 是返回的数据对象，View 是个逻辑上的 View。
-        
         （6）ViewResolver 会根据逻辑 View 查找实际的 View。
-        
         （7）DispaterServlet 把返回的 Model 传给 View（视图渲染）。
-        
         （8）把 View 返回给请求者（浏览器）
         
         
      SpringMVC 重要组件说明
      1、前端控制器DispatcherServlet（不需要工程师开发）,由框架提供（重要）
-     
-     作用：Spring MVC 的入口函数。接收请求，响应结果，相当于转发器，中央处理器。有了 DispatcherServlet 减少了其它组件之间的耦合度。
-     用户请求到达前端控制器，它就相当于mvc模式中的c，DispatcherServlet是整个流程控制的中心，由它调用其它组件处理用户的请求，
-     DispatcherServlet的存在降低了组件之间的耦合性。
-     
+         作用：Spring MVC 的入口函数。接收请求，响应结果，相当于转发器，中央处理器。有了 DispatcherServlet 减少了其它组件之间的耦合度。
+         用户请求到达前端控制器，它就相当于mvc模式中的c，DispatcherServlet是整个流程控制的中心，由它调用其它组件处理用户的请求，
+         DispatcherServlet的存在降低了组件之间的耦合性。
      2、处理器映射器HandlerMapping(不需要工程师开发),由框架提供
-     
-     作用：根据请求的url查找Handler。HandlerMapping负责根据用户请求找到Handler即处理器（Controller），
-     SpringMVC提供了不同的映射器实现不同的映射方式，例如：配置文件方式，实现接口方式，注解方式等。
-     
+         作用：根据请求的url查找Handler。HandlerMapping负责根据用户请求找到Handler即处理器（Controller），
+         SpringMVC提供了不同的映射器实现不同的映射方式，例如：配置文件方式，实现接口方式，注解方式等。
      3、处理器适配器HandlerAdapter
-     
-     作用：按照特定规则（HandlerAdapter要求的规则）去执行Handler 通过HandlerAdapter对处理器进行执行，这是适配器模式的应用，
-     通过扩展适配器可以对更多类型的处理器进行执行。
-     
+         作用：按照特定规则（HandlerAdapter要求的规则）去执行Handler 通过HandlerAdapter对处理器进行执行，这是适配器模式的应用，
+         通过扩展适配器可以对更多类型的处理器进行执行。
      4、处理器Handler(需要工程师开发)
-     
-     注意：编写Handler时按照HandlerAdapter的要求去做，这样适配器才可以去正确执行Handler Handler 是继DispatcherServlet前端控制器的
-     后端控制器，在DispatcherServlet的控制下Handler对具体的用户请求进行处理。 由于Handler涉及到具体的用户业务请求，
-     所以一般情况需要工程师根据业务需求开发Handler。
-     
+         注意：编写Handler时按照HandlerAdapter的要求去做，这样适配器才可以去正确执行Handler Handler 是继DispatcherServlet前端控制器的
+         后端控制器，在DispatcherServlet的控制下Handler对具体的用户请求进行处理。 由于Handler涉及到具体的用户业务请求，
+         所以一般情况需要工程师根据业务需求开发Handler。
      5、视图解析器View resolver(不需要工程师开发),由框架提供
-     
-     作用：进行视图解析，根据逻辑视图名解析成真正的视图（view） View Resolver负责将处理结果生成View视图，View Resolver首先
-     根据逻辑视图名解析成物理视图名即具体的页面地址，再生成View视图对象，最后对View进行渲染将处理结果通过页面展示给用户。 
-     springmvc框架提供了很多的View视图类型，包括：jstlView、freemarkerView、pdfView等。 一般情况下需要通过页面标签或
-     页面模版技术将模型数据通过页面展示给用户，需要由工程师根据业务需求开发具体的页面。
-     
+         作用：进行视图解析，根据逻辑视图名解析成真正的视图（view） View Resolver负责将处理结果生成View视图，View Resolver首先
+         根据逻辑视图名解析成物理视图名即具体的页面地址，再生成View视图对象，最后对View进行渲染将处理结果通过页面展示给用户。 
+         springmvc框架提供了很多的View视图类型，包括：jstlView、freemarkerView、pdfView等。 一般情况下需要通过页面标签或
+         页面模版技术将模型数据通过页面展示给用户，需要由工程师根据业务需求开发具体的页面。
      6、视图View(需要工程师开发)
-     
-     View是一个接口，实现类支持不同的View类型（jsp、freemarker、pdf...）
-     
-     注意：处理器Handler（也就是我们平常说的Controller控制器）以及视图层view都是需要我们自己手动开发的。其他的一些组件比如：前端控制器
-     DispatcherServlet、处理器映射器HandlerMapping、处理器适配器HandlerAdapter等等都是框架提供给我们的，不需要自己手动开发。
-     
+         View是一个接口，实现类支持不同的View类型（jsp、freemarker、pdf...）
+         注意：处理器Handler（也就是我们平常说的Controller控制器）以及视图层view都是需要我们自己手动开发的。其他的一些组件比如：前端控制器
+         DispatcherServlet、处理器映射器HandlerMapping、处理器适配器HandlerAdapter等等都是框架提供给我们的，不需要自己手动开发。
      
      问题:AOP实现原理、动态代理和静态代理、Spring IOC的初始化过程、IOC原理、自己实现怎么实现一个IOC容器？
      
