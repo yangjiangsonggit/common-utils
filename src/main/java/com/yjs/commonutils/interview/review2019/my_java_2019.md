@@ -4394,6 +4394,24 @@
  
            也就是说：AIO是发出IO请求后，由操作系统自己去获取IO权限并进行IO操作；NIO则是发出IO请求后，由线程不断尝试获取IO权限，
            获取到后通知应用程序自己进行IO操作。
+           
+    10.FileInputStream 在使用完以后，不关闭流，想二次使用可以怎么操作
+        反射获取native方法 open0
+                int len;
+                byte [] by=new byte[8192];
+                while ((len=inputStream.read(by))!=-1){
+                    outputStream.write(by,0,len);
+                }
+                if(inputStream.read()==-1){
+                    Class in=inputStream.getClass();
+                    Method openo= in.getDeclaredMethod("open0", String.class);
+                    openo.setAccessible(true);
+                    openo.invoke(inputStream,"E:/test/te.txt");
+                }
+                while ((len=inputStream.read(by))!=-1){
+                    outputStreams.write(by,0,len);
+                }
+
 
 ###结束
 
@@ -4580,7 +4598,7 @@
             1.加强逻辑实现InvocationHandler接口,逻辑写在
                 public Object invoke(Object proxy, Method method, Object[] args)里面,持有被代理的对象
                 调用被代理对象方法method.invoke(target,args);
-            2.创建代理对象
+            2.创建代理对象,传入classLoader,被代理的接口class,invocationHandler
                 DoSomething proxy = (DoSomething)Proxy.newProxyInstance(myDoSomething.getClass().getClassLoader(),
                 				new Class[]{DoSomething.class,Test2.class},
                 				invocationHandler);
@@ -4597,6 +4615,18 @@
                     enhancer.setCallback(this);
                     // 创建代理
                     return enhancer.create();
+                    
+        *为什么jdk动态代理必须实现接口?
+            可以猜测到接口创建的新类proxyClassFile 不管采用什么接口，都是以下结构
+            public class $Proxy1 extends Proxy implements 传入的接口{
+            }
+            
+            生成新类的看不到源代码，不过猜测它的执行原理很有可能是如果类是Proxy的子类，则调用InvocationHandler进行方法的Invoke
+            到现在大家都应该明白了吧，JDK动态代理的原理是根据定义好的规则，用传入的接口创建一个新类，这就是为什么采用动态代理时为什么
+            只能用接口引用指向代理，而不能用传入的类引用执行动态类。
+            即代理类要实现被代理类实现的接口
+            
+            cglib采用的是用创建一个继承实现类的子类，用asm库动态修改子类的代码来实现的，所以可以用传入的类引用执行代理类
     
     6.spring包括哪些模块
         1.核心容器（Core Container）
@@ -4697,13 +4727,15 @@
             事务A在执行读取操作，由整个事务A比较大，前后读取同一条数据需要经历很长的时间 。而在事务A第一次读取数据，比如此时读取了
             小明的年龄为20岁，事务B执行更改操作，将小明的年龄更改为30岁，此时事务A第二次读取到小明的年龄时，发现其年龄是30岁，和之前
             的数据不一样了，也就是数据不重复了，系统不可以读取到重复的数据，成为不可重复读。
+            通过加读写锁解决
        3.幻读（前后多次读取，数据总量不一致）
             事务A在执行读取操作，需要两次统计数据的总量，前一次查询数据总量后，此时事务B执行了新增数据的操作并提交后，这个时候事务A
             读取的数据总量和之前统计的不一样，就像产生了幻觉一样，平白无故的多了几条数据，成为幻读。
        
        1.read uncommited：是最低的事务隔离级别，它允许另外一个事务可以看到这个事务未提交的数据。(脏读问题,读取到未提交的数据)
        2.read commited：保证一个事物提交后才能被另外一个事务读取。另外一个事务不能读取该事物未提交的数据。()
-       3.repeatable read：这种事务隔离级别可以防止脏读，不可重复读。但是可能会出现幻象读。它除了保证一个事务不能被另外一个事务读取未提交的数据之外还避免了以下情况产生（不可重复读）。
+       3.repeatable read：这种事务隔离级别可以防止脏读，不可重复读。但是可能会出现幻象读。它除了保证一个事务不能被另外一个事务读取未
+        提交的数据之外还避免了以下情况产生（不可重复读）。
        4.serializable：这是花费最高代价但最可靠的事务隔离级别。事务被处理为顺序执行。除了防止脏读，不可重复读之外，还避免了幻读。
        5.DEFAULT 这是一个PlatfromTransactionManager默认的隔离级别，使用数据库默认的事务隔离级别.(mysql默认 repeatalbe read)
 
@@ -5070,6 +5102,70 @@
         6.SpringMVC流程?
 
 ##14 kafka
+
+###目录
+    1.为什么需要分区?也就是说主题只有一个分区,难道不行吗?
+        如果只有一个分区,那么我们的topic产生的所有数据都会存放到一个broker中,一台服务器的内存是有限的,当数据足够大时,
+        会造成服务器的内存不足, 就会影响到我们的服务,所以我们需要分区,把数据分成多分存储在不同的broker中,以减轻服务器的存储压力.
+        
+        同时这也会造成一个问题: 如果将数据分区存储,如果其中一台服务器挂掉,则会造成这部分数据不可用.
+        解决方法: 对数据进行备份,也就是副本机制,将同一份数据备份,放到不同的服务器上.
+        
+    2.日志为什么需要分段?
+        为了提高读写效率,如果我们把所有的数据都存放在一个文件中,那么这个文件的将会很大,随之读写速度也是非常慢. 日志分段,
+        那么我们读取的文件都比较小,速度将会很快.
+        
+        Kafka中的数据是以日志的形式存储的,Kafka作为消息中间件,只负责消息的临时存储,并不是永久存储,需要删除过期的数据.
+        如果把所有的数据都存放在同一个文件,则删除过期的数据会很麻烦. 
+        因为文件有日期属性,删除过期的数据只需要根据文件的日期属性删除就行.
+        
+        补充一下删除数据的两种方式:
+            1 按照日期删除,如果只存储7天的日志,超过7天的则删除
+            2 按照行数删除/按照文件的大小
+            
+    3.Kafka的Topic和分区内部是如何存储的,有什么特点?
+      Topic是把数据分别存储到不同的分区中,也就是存放到不同的服务器中.
+      分区内部的数据是存放在多个文件中的,每个分区都有一定数量的.inde文件和.log文件,其中.index和.log文件,这两个文件组成一个segment 段,
+       这个段就存储着分区内的一部分数据,默认是1G.
+      
+    4.Kafka是依靠什么机制保持高可靠的,高可用?
+      依靠副本机制
+          kafka中的多个服务端节点会对其他服务端节点的主题分区的log文件进行复制.
+          当集群中一个服务节点故障之后,这个故障的的服务器节点的所有请求都会被转移到其他正常的节点
+          kafka中的每个主题分区都有一个主副本(leader)和0个或多个副本,副本会同步主副本中的数据,当主副本不可用时,kafka会选择一个副本接替工作, 但并不是所有的副本都能担任主副本,需要满足两个条件:
+              该副本保持和zookeeper的通信.
+              该副本中同步主副本中的数据是最多的.
+              
+    5.让你自己设计个消息队列,你会怎么设计,会考虑那些方面?
+        1 该消息队列的使用场景? 是用于业务解耦,还是错峰流控等
+        2 选择基于消息的系统模型,是否需要broken(消息队列服务端),
+        3 消息在服务器中如何存储,生产者,服务器,消费者之间消息如何传递?
+        4 如何在服务器之间实现RPC通信
+        
+        总结
+            总而言之，消息队列不是万能的。对于需要强事务保证而且延迟敏感的，RPC是优于消息队列的。
+            对于一些无关痛痒，或者对于别人非常重要但是对于自己不是那么关心的事情，可以利用消息队列去做。
+            支持最终一致性的消息队列，能够用来处理延迟不那么敏感的“分布式事务”场景，而且相对于笨重的分布式事务，可能是更优的处理方式。
+            当上下游系统处理能力存在差距的时候，利用消息队列做一个通用的“漏斗”。在下游有能力处理的时候，再进行分发。
+            如果下游有很多系统关心你的系统发出的通知的时候，果断地使用消息队列吧。
+            
+        扩展
+            RPC : 远程过程调用协议RPC（Remote Procedure Call Protocol)
+            
+            RPC是指远程过程调用，也就是说两台服务器A，B，一个应用部署在A服务器上，想要调用B服务器上应用提供的函数/方法，由于不在一个
+            内存空间，不能直接调用，需要通过网络来表达调用的语义和传达调用的数据。
+            常用的分布式RPC框架有：dubbo、motan、rpcx、gRPC、thrift等等。
+            
+    6. kafka为什么那么快?
+          kafka中的数据不支持修改.
+          由系统层面的优化,缓存读取有预读取机制
+          kafka使用了,分区,分布式系统.
+          kafka 使用 zero copy 技术 (基于 linux 的 sendfile 函数)，可以减少传统数据传递时在 kernel 态和 user 态的 context 切换的空间和时间损耗。
+
+
+    
+    
+###结束
 
     Kafka 生产者
     https://github.com/crossoverJie/JCSprout/blob/master/MD/kafka/kafka-product.md
@@ -6068,6 +6164,158 @@
     
 
 ##15 mybatis
+    https://blog.csdn.net/u010890358/article/details/80665753
+
+###目录
+    -2.mybatis核心类
+        SqlSessionFactory
+            每个基于 MyBatis 的应用都是以一个 SqlSessionFactory 的实例为中心的。SqlSessionFactory 的实例可以通过 
+            SqlSessionFactoryBuilder 获得。而 SqlSessionFactoryBuilder 则可以从 XML 配置文件或通过Java的方式构建出 
+            SqlSessionFactory 的实例。SqlSessionFactory 一旦被创建就应该在应用的运行期间一直存在，建议使用单例模式或者静态单例模式。
+            一个SqlSessionFactory对应配置文件中的一个环境（environment），如果你要使用多个数据库就配置多个环境分别对应一个SqlSessionFactory。
+        SqlSession：
+            SqlSession是一个接口，它有2个实现类，分别是DefaultSqlSession(默认使用)以及SqlSessionManager。SqlSession通过内部
+            存放的执行器（Executor）来对数据进行CRUD。此外SqlSession不是线程安全的，因为每一次操作完数据库后都要调用close对其进行关闭，
+            官方建议通过try-finally来保证总是关闭SqlSession。
+        Executor：
+            Executor（执行器）接口有两个实现类，其中BaseExecutor有三个继承类分别是BatchExecutor（重用语句并执行批量更新），
+            ReuseExecutor（重用预处理语句prepared statements），SimpleExecutor（普通的执行器）。
+            以上三个就是主要的Executor。通过下图可以看到Mybatis在Executor的设计上面使用了装饰者模式，
+            我们可以用CachingExecutor来装饰前面的三个执行器目的就是用来实现缓存。
+        MappedStatement：
+            MappedStatement就是用来存放我们SQL映射文件中的信息包括sql语句，输入参数，输出参数等等。一个SQL节点对应一个MappedStatement对象。
+
+        
+    -1.mybatis流程
+        1.第一步通过SqlSessionFactoryBuilder创建SqlSessionFactory
+            首先在SqlSessionFactoryBuilder的build（）方法中可以看到MyBatis内部定义了一个类XMLConfigBuilder用来解析配置文件
+            mybatis-config.xml。针对配置文件中的每一个节点进行解析并将数据存放到Configuration这个对象中，紧接着使用带有
+            Configuration的构造方法发返回一个DefautSqlSessionFactory。
+        2.第二步通过SqlSessionFactory创建SqlSession
+        3.第三步通过SqlSession拿到Mapper对象的代理
+        4.第四步通过MapperProxy调用Maper中相应的方法
+        
+        详细版本:
+        mapper.xml -> mybatis-config.xml -> sqlSessionFactoryBuilder -> sqlSessionFactory -> sqlSession -> MapperProxy 
+        -> DB
+        
+    0.mybatis常用配置项?
+    https://blog.csdn.net/fageweiketang/article/details/80767532
+        <settings>
+            <setting name="cacheEnabled" value="true"/> (二级缓存)
+            <setting name="lazyLoadingEnabled" value="true"/>   (懒加载)
+            <setting name="multipleResultSetsEnabled" value="true"/>
+            <setting name="useColumnLabel" value="true"/>
+            <setting name="useGeneratedKeys" value="false"/>
+            <setting name="autoMappingBehavior" value="PARTIAL"/>
+            <setting name="autoMappingUnknownColumnBehavior" value="WARNING"/>
+            <setting name="defaultExecutorType" value="SIMPLE"/>    (默认执行器)
+            <setting name="defaultStatementTimeout" value="30"/>
+            <setting name="defaultFetchSize" value="200"/>
+            <setting name="safeRowBoundsEnabled" value="false"/>
+            <setting name="mapUnderscoreToCamelCase" value="false"/>
+            <setting name="localCacheScope" value="SESSION"/>
+            <setting name="jdbcTypeForNull" value="OTHER"/>
+            <setting name="lazyLoadTriggerMethods" value="equals,clone,hashCode,toString"/>
+        </settings>
+        
+    1.#{}和${}的区别是什么？
+        #{}解析传递进来的参数数据
+        ${}对传递进来的参数原样拼接在SQL中
+        #{}是预编译处理，${}是字符串替换。
+        使用#{}可以有效的防止SQL注入，提高系统安全性。
+        
+    2.如何获取自动生成的(主)键值?
+        通过LAST_INSERT_ID()获取刚插入记录的自增主键值，在insert语句执行后，执行select LAST_INSERT_ID()就可以获取自增主键。
+            <insert id="insertUser" parameterType="cn.itcast.mybatis.po.User">
+        		<selectKey keyProperty="id" order="AFTER" resultType="int">
+        			select LAST_INSERT_ID()
+        		</selectKey>
+        		INSERT INTO USER(username,birthday,sex,address) VALUES(#{username},#{birthday},#{sex},#{address})
+        	</insert>
+        
+    3.Mybatis动态sql是做什么的？都有哪些动态sql？能简述一下动态sql的执行原理不？
+        Mybatis动态sql可以让我们在Xml映射文件内，以标签的形式编写动态sql，完成逻辑判断和动态拼接sql的功能。
+        Mybatis提供了9种动态sql标签：trim|where|set|foreach|if|choose|when|otherwise|bind。
+        
+    4.Mybatis的Xml映射文件中，不同的Xml映射文件，id是否可以重复？
+        如果配置了namespace那么当然是可以重复的，因为我们的Statement实际上就是namespace+id
+        如果没有配置namespace的话，那么相同的id就会导致覆盖了。        
+  
+    5.为什么说Mybatis是半自动ORM映射工具？它与全自动的区别在哪里？
+        Hibernate属于全自动ORM映射工具，使用Hibernate查询关联对象或者关联集合对象时，可以根据对象关系模型直接获取，所以它是全自动的。
+        而Mybatis在查询关联对象或关联集合对象时，需要手动编写sql来完成，所以，称之为半自动ORM映射工具。
+        
+    6.1+n问题是什么？应该怎样解决？
+      1+n是执行一次查询获取n条主数据后，由于关联引起的执行n次查询从数据；它带来了性能问题；
+      一般来说，通过懒加载,要使用的时候再查询,可以部分缓解1+n带来的性能问题
+      
+    *7.通常一个Xml映射文件，都会写一个Dao接口与之对应，请问，这个Dao接口的工作原理是什么？Dao接口里的方法，参数不同时，方法能重载吗？
+        Dao接口，就是人们常说的Mapper接口，接口的全限名，就是映射文件中的namespace的值，接口的方法名，就是映射文件
+        中MappedStatement的id值，接口方法内的参数，就是传递给sql的参数。
+        Mapper接口是没有实现类的，当调用接口方法时，接口全限名+方法名拼接字符串作为key值，可唯一定位一个MappedStatement
+        
+        Dao接口里的方法，是不能重载的，因为是全限名+方法名的保存和寻找策略。
+        Dao接口的工作原理是JDK动态代理，Mybatis运行时会使用JDK动态代理为Dao接口生成代理proxy对象，代理对象proxy会拦截接口方法，
+        转而执行MappedStatement所代表的sql，然后将sql执行结果返回。
+        
+    8.Mybatis比IBatis比较大的几个改进是什么
+        a.有接口绑定,包括注解绑定sql和xml绑定Sql ,
+        b.动态sql由原来的节点配置变成OGNL表达式,
+        c. 在一对一,一对多的时候引进了association,在一对多的时候引入了collection节点,不过都是在resultMap里面配置
+        
+    9.接口绑定有几种实现方式,分别是怎么实现的?
+        接口绑定有两种实现方式：
+            一种是通过注解绑定,就是在接口的方法上面加上@Select@Update等注解里面包含Sql语句来绑定
+            另外一种就是通过xml里面写SQL来绑定,在这种情况下,要指定xml映射文件里面的namespace必须为接口的全路径名.
+    
+    10.Mybatis是如何进行分页的？分页插件的原理是什么？
+        Mybatis使用RowBounds对象进行分页，它是针对ResultSet结果集执行的内存分页，而非物理分页，可以在sql内直接书写带有物理分页的
+        参数来完成物理分页功能，也可以使用分页插件来完成物理分页。
+        分页插件的基本原理是使用Mybatis提供的插件接口，实现自定义插件，在插件的拦截方法内拦截待执行的sql，然后重写sql，根据dialect方言，
+        添加对应的物理分页语句和物理分页参数。
+        举例：select * from student，拦截sql后重写为：select t.* from （select * from student）t limit 0，10
+        
+        
+    11.简述Mybatis的插件运行原理，以及如何编写一个插件
+        Mybatis仅可以编写针对ParameterHandler、ResultSetHandler、StatementHandler、Executor这4种接口的插件，
+            Mybatis使用JDK的动态代理，为需要拦截的接口生成代理对象以实现接口方法拦截功能，每当执行这4种接口对象的方法时，
+            就会进入拦截方法，具体就是InvocationHandler的invoke()方法，当然，只会拦截那些你指定需要拦截的方法。
+        实现Mybatis的Interceptor接口并复写intercept()方法，然后在给插件编写注解，指定要拦截哪一个接口的哪些方法即可，记住，
+            别忘了在配置文件中配置你编写的插件。
+            
+    12.Mybatis是否支持延迟加载？如果支持，它的实现原理是什么？
+        Mybatis仅支持association关联对象和collection关联集合对象的延迟加载，association指的就是一对一，collection指的就是一对多查询。
+            在Mybatis配置文件中，可以配置是否启用延迟加载lazyLoadingEnabled=true|false。
+        它的原理是，使用CGLIB创建目标对象的代理对象，当调用目标方法时，进入拦截器方法，比如调用a.getB().getName()，
+            拦截器invoke()方法发现a.getB()是null值，那么就会单独发送事先保存好的查询关联B对象的sql，把B查询上来，然后调用a.setB(b)，
+            于是a的对象b属性就有值了，接着完成a.getB().getName()方法的调用。这就是延迟加载的基本原理。
+        当然了，不光是Mybatis，几乎所有的包括Hibernate，支持延迟加载的原理都是一样的。
+        
+    13.Mybatis都有哪些Executor执行器？它们之间的区别是什么？
+        Mybatis有三种基本的Executor执行器，SimpleExecutor、ReuseExecutor、BatchExecutor。
+        
+        SimpleExecutor：每执行一次update或select，就开启一个Statement对象，用完立刻关闭Statement对象。
+        ReuseExecutor：执行update或select，以sql作为key查找Statement对象，存在就使用，不存在就创建，用完后，不关闭Statement对象，
+            而是放置于Map<String, Statement>内，供下一次使用。简言之，就是重复使用Statement对象。
+        BatchExecutor：执行update（没有select，JDBC批处理不支持select），将所有sql都添加到批处理中（addBatch()），等待统一执行
+            （executeBatch()），它缓存了多个Statement对象，每个Statement对象都是addBatch()完毕后，等待逐一执行executeBatch()批处理。与JDBC批处理相同。
+        
+        作用范围：Executor的这些特点，都严格限制在SqlSession生命周期范围内。
+    14.mybatis一级缓存和二级缓存
+        一级缓存的作用域是同一个SqlSession，在同一个sqlSession中两次执行相同的sql语句，第一次执行完毕会将数据库中查询的数据写到缓存（内存），
+        第二次会从缓存中获取数据将不再从数据库查询，从而提高查询效率。当一个sqlSession结束后该sqlSession中的一级缓存也就不存在了
+        。Mybatis默认开启一级缓存。
+        
+        二级缓存是mapper级别的缓存，多个SqlSession去操作同一个Mapper的sql语句，多个SqlSession去操作数据库得到数据会存在二级缓存区域，
+        多个SqlSession可以共用二级缓存，二级缓存是跨SqlSession的。不同的sqlSession两次执行相同namespace下的sql语句且向sql中传递参数
+        也相同即最终执行相同的sql语句，第一次执行完毕会将数据库中查询的数据写到缓存（内存），第二次会从缓存中获取数据将不再从数据库查询，
+        从而提高查询效率。Mybatis默认没有开启二级缓存需要在setting全局参数中配置开启二级缓存.
+        
+###结束
+
+
+
     https://segmentfault.com/a/1190000013678579     (Mybatis常见面试题)
     Mybatis缓存(*)
         一级缓存的作用域是同一个SqlSession，在同一个sqlSession中两次执行相同的sql语句，第一次执行完毕会将数据库中查询的数据写到缓存（内存），
@@ -6158,6 +6406,329 @@
 
 ##16 数据库
 
+###目录
+    
+    1.说一下mysql有哪些日志,有什么作用
+        MySQL中有六种日志文件，分别是：重做日志（redo log）、回滚日志（undo log）、二进制日志（binlog）、错误日志（errorlog）、
+        慢查询日志（slow query log）、一般查询日志（general log），中继日志（relay log）。
+        
+        1.redo log
+            通常是物理日志，记录的是数据页的物理修改，而不是某一行或某几行修改成怎样怎样，它用来恢复提交后的物理数据页
+            (恢复数据页，且只能恢复到最后一次提交的位置)。为了保证事务的持久性.
+            个人理解就是事务已经提交了,在写数据的时候没写完,恢复后要把数据恢复到最后提交事务的位置.
+        2.undo
+            用来回滚行记录到某个版本。undo log一般是逻辑日志，根据每行记录进行记录。事务还没提交,恢复到修改前的状态,事务的一致性.
+            重做日志：每当有操作执行前，将数据真正更改时，先前相关操作写入重做日志。这样当断电，或者一些意外，导致后续任务无法完成时，
+            系统恢复后，可以继续完成这些更改 
+            撤消日志：当一些更改在执行一半时，发生意外，而无法完成，则可以根据撤消日志恢复到更改之前的壮态
+    
+            redo->记录所有操作，用于恢复（redo records all the database transaction used for recovery） 　　 
+            undo->记录所有的前印象，用于回滚（undo is used to store uncommited data infor used for rollback） 　 
+            redo->已递交的事务,实例恢复时要写到数据文件去的 
+            undo->未递交的事务. 　 
+        3.bin log
+            作用：
+                1，用于复制，在主从复制中，从库利用主库上的binlog进行重播，实现主从同步。
+                2，用于数据库的基于时间点的还原。
+                
+        4.*binlog 和 redolog 的区别
+              1，作用不同：redo log是保证事务的持久性的，是事务层面的，binlog作为还原的功能，是数据库层面的（当然也可以精确到事务层面的），
+                  虽然都有还原的意思，但是其保护数据的层次是不一样的。
+              2，内容不同：redo log是物理日志，是数据页面的修改之后的物理记录，binlog是逻辑日志，可以简单认为记录的就是sql语句
+              3，另外，两者日志产生的时间，可以释放的时间，在可释放的情况下清理机制，都是完全不同的。
+              4，恢复数据时候的效率，基于物理日志的redo log恢复数据的效率要高于语句逻辑日志的binlog
+          
+              关于事务提交时，redo log和binlog的写入顺序，为了保证主从复制时候的主从一致（当然也包括使用binlog进行基于时间点还原的情况），是要严格一致的，
+              MySQL通过两阶段提交过程来完成事务的一致性的，也即redo log和binlog的一致性的，理论上是先写redo log，再写binlog，
+              两个日志都提交成功（刷入磁盘），事务才算真正的完成。
+
+        
+    2.mvcc实现原理
+        mvcc是多版本并发控制.适用了三列隐藏列,MVCC在大多数情况下代替了行锁，实现了对读的非阻塞，读不加锁，读写不冲突。缺点是每行记录都
+        需要额外的存储空间，需要做更多的行维护和检查工作。并且解决了不可重复读和幻读的问题.多版本需要undolog协助.
+        查询的时候只查询当前事务id比删除事务id小或者删除事务id为空的,还有一个条件是大于等于创建id
+        
+    3.什么是脏读？幻读？不可重复读？什么是事务的隔离级别？
+        脏读：事务A读取了事务B更新的数据，然后B回滚操作，那么A读取到的数据是脏数据
+        不可重复读：事务 A 多次读取同一数据，事务 B 在事务A多次读取的过程中，对数据作了更新并提交，
+            导致事务A多次读取同一数据时，结果 不一致。
+        幻读：系统管理员A将数据库中所有学生的成绩从具体分数改为ABCDE等级，但是系统管理员B就在这个时候插入了一条具体分数的记录，
+            当系统管理员A改结束后发现还有一条记录没有改过来，就好像发生了幻觉一样，这就叫幻读。
+            
+    4.关键字执行顺序
+        一、标准的 SQL 的解析顺序为:
+        　　(1) FROM 子句 组装来自不同数据源的数据
+        　　(2) WHERE 子句 基于指定的条件对记录进行筛选
+        　　(3) GROUP BY 子句 将数据划分为多个分组
+        　　(4) 使用聚合函数进行计算
+        　　(5) 使用HAVING子句筛选分组
+        　　(6) 计算所有的表达式
+        　　(7) 使用ORDER BY对结果集进行排序
+        
+        二、执行顺序
+        　　1. FROM：对FROM子句中前两个表执行笛卡尔积生成虚拟表vt1
+        　　2. ON: 对vt1表应用ON筛选器只有满足 join_condition 为真的行才被插入vt2
+        　　3. OUTER(join)：如果指定了 OUTER JOIN保留表(preserved table)中未找到的行将行作为外部行添加到vt2，生成t3，如果from包含两个以上表，则对上一个联结生成的结果表和下一个表重复执行步骤和步骤直接结束。
+        　　4. WHERE：对vt3应用 WHERE 筛选器只有使 where_condition 为true的行才被插入vt4
+        　　5. GROUP BY：按GROUP BY子句中的列列表对vt4中的行分组生成vt5
+        　　6. CUBE|ROLLUP：把超组(supergroups)插入vt6，生成vt6
+        　　7. HAVING：对vt6应用HAVING筛选器只有使 having_condition 为true的组才插入vt7
+        　　8. SELECT：处理select列表产生vt8
+        　　9. DISTINCT：将重复的行从vt8中去除产生vt9
+        　　10. ORDER BY：将vt9的行按order by子句中的列列表排序生成一个游标vc10
+            11.Limit
+    
+    6.大数据情况下如何做分页？
+        SELECT * FROM student LIMIT 10000 , 10;
+        实际底层执行是从第一行开始找到10010行，再抛弃前面的一万行。所以当用户往后翻到很多页的时候，
+        offset这个值可能就比较大，实际执行效率就会很慢。
+        
+        优化方法1: (如果不是按id分就有问题,要用方法2)
+            where语句限制一半，limit控制行数
+            
+            SELECT * FROM student WHERE ID >= 10000 LIMIT 10;
+            这样的好处就是不仅效率高了，而且能刚好拿十条。但是这里依然还是有一个问题:不适用于所有情况。具体不适用与什么情况呢？
+            简单来说就是id和行数不能对应的情况。比如ID本身是无规律离散的，那么计算这个起始ID就不能简单的pageIndex * pageSize了。
+            
+        优化方法2:
+            利用"子查询/连接+索引"快速定位元组的位置,然后再读取元组. 道理同方法5
+            先用子查询查出符合查询条件的id,然后用外层查询limit
+                    如(id是主键/唯一键,蓝色字体时变量):
+                    利用子查询示例:
+                    SELECT * FROM your_table WHERE id <= 
+                    (SELECT id FROM your_table ORDER BY id desc LIMIT ($page-1)*$pagesize,1)
+                    ORDER BY id desc LIMIT $pagesize
+                    
+    7.如何设计可以动态扩容缩容的分库分表方案？       
+      1.设定好几台数据库服务器，每台服务器上几个库，每个库多少个表，推荐是 32库 * 32表，对于大部分公司来说，可能几年都够了。
+      2.路由的规则，orderId 模 32 = 库，orderId / 32 模 32 = 表
+      3.扩容的时候，申请增加更多的数据库服务器，装好 mysql，呈倍数扩容，4 台服务器，扩到 8 台服务器，再到 16 台服务器。
+      4.由 dba 负责将原先数据库服务器的库，迁移到新的数据库服务器上去，库迁移是有一些便捷的工具的。
+      5.我们这边就是修改一下配置，调整迁移的库所在数据库服务器的地址。
+      6.重新发布系统，上线，原先的路由规则变都不用变，直接可以基于 n 倍的数据库服务器的资源，继续进行线上系统的提供服务。
+      
+      免迁移扩容(只有分库,没有分表的情况)
+          采用双倍扩容策略，避免数据迁移。扩容前每个节点的数据，有一半要迁移至一个新增节点中，对应关系比较简单。 
+          具体操作如下(假设已有 2 个节点 A/B，要双倍扩容至 A/A2/B/B2 这 4 个节点)：
+      
+          无需停止应用服务器；
+          新增两个数据库 A2/B2 作为从库，设置主从同步关系为：A=>A2、B=>B2，直至主从数据同步完毕(早期数据可手工同步)；
+          调整分片规则并使之生效： 
+          原 ID%2=0 => A 改为 ID%4=0 => A, ID%4=2 => A2； 
+          原 ID%2=1 => B 改为 ID%4=1 => B, ID%4=3 => B2。
+          解除数据库实例的主从同步关系，并使之生效；
+          此时，四个节点的数据都已完整，只是有冗余(多存了和自己配对的节点的那部分数据)，择机清除即可(过后随时进行，不影响业务)。
+          
+      *双写迁移方案   (这个比较实用)
+      　　简单来说，就是在线上系统里面，之前所有写库的地方，增删改操作，都除了对老库增删改，都加上对新库的增删改，这就是所谓双写，同时写俩库，老库和新库。
+      　　然后系统部署之后，新库数据差太远，用之前说的导数工具，跑起来读老库数据写新库，写的时候要根据gmt_modified这类字段判断这条数据最后修改的时间，除非是读出来的数据在新库里没有，或者是比新库的数据新才会写。
+      　　接着导完一轮之后，有可能数据还是存在不一致，那么就程序自动做一轮校验，比对新老库每个表的每条数据，接着如果有不一样的，就针对那些不一样的，从老库读数据再次写。反复循环，直到两个库每个表的数据都完全一致为止。
+      　　接着当数据完全一致了，就ok了，基于仅仅使用分库分表的最新代码，重新部署一次，不就仅仅基于分库分表在操作了么，还没有几个小时的停机时间。
+
+    8.分库分表后面临的问题?
+        事务支持 
+        跨库join
+        跨节点的count,order by,group by以及聚合函数问题 
+        数据迁移，容量规划，扩容等问题
+        ID问题
+        跨分片的排序分页
+        
+    9.主从同步/读写分离
+                  
+          MySQL 主从复制原理的是啥？
+              主库将变更写入 binlog 日志，然后从库连接到主库之后，从库有一个 IO 线程，将主库的 binlog 日志拷贝到自己本地，
+              写入一个 relay 中继日志中。接着从库中有一个 SQL 线程会从中继日志读取 binlog，然后执行 binlog 日志中的内容，
+              也就是在自己本地再次执行一遍 SQL，这样就可以保证自己跟主库的数据是一样的。
+              
+              这里有一个非常重要的一点，就是从库同步主库数据的过程是串行化的，也就是说主库上并行的操作，在从库上会串行执行。
+              所以这就是一个非常重要的点了，由于从库从主库拷贝日志以及串行执行 SQL 的特点，在高并发场景下，
+              从库的数据一定会比主库慢一些，是有延时的。所以经常出现，刚写入主库的数据可能是读不到的，要过几十毫秒，
+              甚至几百毫秒才能读取到。
+              
+              而且这里还有另外一个问题，就是如果主库突然宕机，然后恰好数据还没同步到从库，那么有些数据可能在从库上是没有的，
+              有些数据可能就丢失了。
+    10.主从数据不一致,怎么解决?
+          *所以 MySQL 实际上在这一块有两个机制，一个是半同步复制，用来解决主库数据丢失问题；
+          一个是并行复制，用来解决主从同步延时问题。
+          
+          1.(防止数据丢失)这个所谓半同步复制，也叫 semi-sync 复制，指的就是主库写入 binlog 日志之后，就会将强制此时立即将数据同步到从库，
+          从库将日志写入自己本地的 relay log 之后，接着会返回一个 ack 给主库，主库接收到至少一个从库的 ack 之后才会认为写操作完成了。
+          
+          2.(减少延迟)所谓并行复制，指的是从库开启多个线程，并行读取 relay log 中不同库的日志，然后并行重放不同库的日志，这是库级别的并行。
+            减少主库的写压力
+            一般来说，如果主从延迟较为严重，有以下解决方案：
+                分库，将一个主库拆分为多个主库，每个主库的写并发就减少了几倍，此时主从延迟可以忽略不计。
+                打开 MySQL 支持的并行复制，多个库并行复制。如果说某个库的写入并发就是特别高，单库写并发达到了 2000/s，并行复制还是没意义。
+                重写代码，写代码的同学，要慎重，插入数据时立马查询可能查不到。
+                如果确实是存在必须先插入，立马要求就查询到，然后立马就要反过来执行一些操作，对这个查询设置直连主库。不推荐这种方法，你这么搞导致读写分离的意义就丧失了。
+          
+            show status
+                查看 Seconds_Behind_Master，可以看到从库复制主库的数据落后了几 ms。
+              
+          
+          3.(数据不一致)基于gtid主从复制
+              GTID：
+              1）全局事务标识：global transaction identifiers。
+              2）GTID是一个事务一一对应，并且全局唯一ID。
+              3）一个GTID在一个服务器上只执行一次，避免重复执行导致数据混乱或者主从不一致。
+              4）GTID用来代替传统复制方法，不再使用MASTER_LOG_FILE+MASTER_LOG_POS开启复制。而是使用MASTER_AUTO_POSTION=1的方式开始复制。
+              5）MySQL-5.6.5开始支持的，MySQL-5.6.10后开始完善。
+              6）在传统的slave端，binlog是不用开启的，但是在GTID中slave端的binlog是必须开启的，目的是记录执行过的GTID（强制）。
+              
+              组成：
+              1）GTID = source_id：transaction_id
+              2）source_id：用于鉴别原服务器，即mysql服务器唯一的的server_uuid，由于GTID会传递到slave，所以也可以理解为源ID。
+              3）transaction_id：为当前服务器上已提交事务的一个序列号，通常从1开始自增长的序列，一个数值对应一个事务。
+              
+              原理：
+              1）master更新数据时，会在事务前产生GTID，一同记录到binlog日志中。
+              2）slave端的i/o 线程将变更的binlog，写入到本地的relay log中。
+              3）sql线程从relay log中获取GTID，然后对比slave端的binlog是否有记录。
+              4）如果有记录，说明该GTID的事务已经执行，slave会忽略。
+              5）如果没有记录，slave就会从relay log中执行该GTID的事务，并记录到binlog。
+              6）在解析过程中会判断是否有主键，如果没有就用二级索引，如果没有就用全部扫描。
+              
+    11.mysql中in 和exists 区别
+       mysql中的in语句是把外表和内表作hash 连接，而exists语句是对外表作loop循环，每次loop循环再对内表进行查询。
+       一直大家都认为exists比in语句的效率要高，这种说法其实是不准确的。这个是要区分环境的。
+       
+       1.如果查询的两个表大小相当，那么用in和exists差别不大。
+       2.如果两个表中一个较小，一个是大表，则子查询表大的用exists，子查询表小的用in。
+       3.not in 和not exists如果查询语句使用了not in 那么内外表都进行全表扫描，没有用到索引；而not extsts的子查询依然能用到表上的索引。
+         所以无论那个表大，用not exists都比not in要快。
+    
+    12.mysql如何实现避免幻读
+       在快照读读情况下，mysql通过mvcc来避免幻读。   
+       在当前读读情况下，mysql通过next-key来避免幻读
+       
+       next-key = X锁加GAP锁
+       快照读 = select * from table
+       当前读 = select * from table lock in share mode = select * from table for update
+       
+    13.讲一下MySQL的索引
+            *聚集和非聚集索引
+               聚集索引就是以主键创建的索引
+               非聚集索引就是以非主键创建的索引
+               
+               聚集索引在叶子节点存储的是表中的数据
+               非聚集索引在叶子节点存储的是主键和索引列
+               使用非聚集索引查询出数据时，拿到叶子上的主键再去查到想要查找的数据。(拿到主键再查找这个过程叫做回表)
+               非聚集索引也叫做二级索引
+               
+           索引主要数据结构
+               Hash索引  底层数据结构是哈希表,对于记录大多数查询是单条记录的场景,可以采用
+               Btree索引 两种引擎的的底层实现是不同的,myisam 叶子节点是内存地址的引用,innoDB是主键加记录的链表
+               
+           哈希索引的缺点    
+               哈希索引也没办法利用索引完成排序
+               不支持最左匹配原则
+               在有大量重复键值情况下，哈希索引的效率也是极低的---->哈希碰撞问题。
+               不支持范围查询
+           
+           覆盖索引
+               创建多列索引中也涉及到了一种特殊的索引-->覆盖索引
+               
+               我们前面知道了，如果不是聚集索引，叶子节点存储的是主键+列值
+               最终还是要“回表”，也就是要通过主键再查找一次。这样就会比较慢
+               覆盖索引就是把要查询出的列和索引是对应的，不做回表操作！
+               
+           *最左匹配原则：
+               索引可以简单如一个列(a)，也可以复杂如多个列(a, b, c, d)，即联合索引。
+               如果是联合索引，那么key也由多个列组成，同时，索引只能用于查找key是否存在（相等），
+               遇到范围查询(>、<、between、like左匹配)等就不能进一步匹配了，后续退化为线性查找。
+               因此，列的排列顺序决定了可命中索引的列数。
+               
+               例子：
+               如有索引(a, b, c, d)，查询条件a = 1 and b = 2 and c > 3 and d = 4，则会在每个节点依次命中
+               a、b、c，无法命中d。(很简单：索引命中只能是相等的情况，不能是范围匹配)
+       
+                *为什么有最左前缀原则
+                    只有最左前缀是有序的,可以通过索引快速定位,,其他的都要全表扫描
+           =、in自动优化顺序
+               不需要考虑=、in等的顺序，mysql会自动优化这些条件的顺序，以匹配尽可能多的索引列。
+               例子：
+               
+               如有索引(a, b, c, d)，查询条件c > 3 and b = 2 and a = 1 and d < 4与a = 1 and c > 3 and b = 2 and d < 4等
+               顺序都是可以的，MySQL会自动优化为a = 1 and b = 2 and c > 3 and d < 4，依次命中a、b、c。
+           
+           *索引总结
+               索引在数据库中是一个非常重要的知识点！上面谈的其实就是索引最基本的东西，要创建出好的索引要顾及到很多的方面：
+               
+               1，最左前缀匹配原则。这是非常重要、非常重要、非常重要（重要的事情说三遍）的原则，MySQL会一直向右匹配直到遇到范围查询（>,<,BETWEEN,LIKE）就停止匹配。
+               3，尽量选择区分度高的列作为索引，区分度的公式是 COUNT(DISTINCT col) / COUNT(*)。表示字段不重复的比率，比率越大我们扫描的记录数就越少。
+               4，索引列不能参与计算，尽量保持列“干净”。比如，FROM_UNIXTIME(create_time) = '2016-06-06' 就不能使用索引，原因很简单，B+树中存储的都是数据表中的字段值，但是进行检索时，需要把所有元素都应用函数才能比较，显然这样的代价太大。所以语句要写成 ： create_time = UNIX_TIMESTAMP('2016-06-06')。
+               5，尽可能的扩展索引，不要新建立索引。比如表中已经有了a的索引，现在要加（a,b）的索引，那么只需要修改原来的索引即可。
+               6，单个多列组合索引和多个单列索引的检索查询效果不同，因为在执行SQL时，MySQL只能使用一个索引，会从多个单列索引中选择一个限制最为严格的索引。
+           
+           选择索引和编写索引的原则
+               1.一次查询尽可能多的包括所需要的行
+               2.尽量用覆盖索引
+               3.顺序I/O性能高
+               
+           
+    14.怎么对进行sql优化
+           1.负向查询不能使用索引
+               select name from user where id not in (1,3,4);
+               应该修改为:
+               
+               select name from user where id in (2,5,6);
+           2.前导模糊查询不能使用索引
+               如:
+               
+               select name from user where name like '%zhangsan'
+               非前导则可以:
+               
+               select name from user where name like 'zhangsan%'
+               建议可以考虑使用 Lucene 等全文索引工具来代替频繁的模糊查询。
+               
+           3.数据区分不明显的不建议创建索引
+               如 user 表中的性别字段，可以明显区分的才建议创建索引，如身份证等字段。
+               
+           4.字段的默认值不要为 null
+               这样会带来和预期不一致的查询结果。
+               
+           5.在字段上进行计算不能命中索引
+               select name from user where FROM_UNIXTIME(create_time) < CURDATE();
+               应该修改为:
+               
+               select name from user where create_time < FROM_UNIXTIME(CURDATE());
+           6.最左前缀问题
+               如果给 user 表中的 username pwd 字段创建了复合索引那么使用以下SQL 都是可以命中索引:
+               
+               select username from user where username='zhangsan' and pwd ='axsedf1sd'
+               
+               select username from user where pwd ='axsedf1sd' and username='zhangsan'
+               
+               select username from user where username='zhangsan'
+               但是使用
+               
+               select username from user where pwd ='axsedf1sd'
+               是不能命中索引的。
+               
+           7.如果明确知道只有一条记录返回
+               select name from user where username='zhangsan' limit 1
+               可以提高效率，可以让数据库停止游标移动。
+               
+           8.不要让数据库帮我们做强制类型转换
+               select name from user where telno=18722222222
+               这样虽然可以查出数据，但是会导致全表扫描。
+               
+               需要修改为
+               
+               select name from user where telno='18722222222'
+               如果需要进行 join 的字段两表的字段类型要相同
+               不然也不会命中索引。
+               
+    15.mysql引擎有哪些,有哪些区别
+        
+    16.InnoDB支持哈希索引吗？
+       主流的还是使用B+树索引比较多，对于哈希索引，InnoDB是自适应哈希索引的（hash索引的创建由InnoDB存储引擎引擎自动优化创建，我们干预不了）！
+       
+    17.
+
+
+###结束
+
     连接池
         druid
             配置        缺省值       	说明
@@ -6190,6 +6761,36 @@
             监控统计用的filter:stat日志用的filter:log4j防御sql注入的filter:wall
             proxyFilters	 	
             类型是List<com.alibaba.druid.filter.Filter>，如果同时配置了filters和proxyFilters，是组合关系，并非替换关系
+    
+    *什么是MVCC
+        https://blog.csdn.net/w2064004678/article/details/83012387  (讲得比较清楚)
+        基础概念
+            MVCC，Multi-Version Concurrency Control，多版本并发控制。MVCC 是一种并发控制的方法，一般在数据库管理系统中，
+            实现对数据库的并发访问；在编程语言中实现事务内存。
+            
+            如果有人从数据库中读数据的同时，有另外的人写入数据，有可能读数据的人会看到『半写』或者不一致的数据。有很多种方法来解决这个问题，
+            叫做并发控制方法。最简单的方法，通过加锁，让所有的读者等待写者工作完成，但是这样效率会很差。MVCC 使用了一种不同的手段，
+            每个连接到数据库的读者，在某个瞬间看到的是数据库的一个快照，写者写操作造成的变化在写操作完成之前（或者数据库事务提交之前）
+            对于其他的读者来说是不可见的。
+        
+        基本原理
+            MVCC的实现，通过保存数据在某个时间点的快照来实现的。这意味着一个事务无论运行多长时间，在同一个事务里能够看到数据一致的视图。
+            根据事务开始的时间不同，同时也意味着在同一个时刻不同事务看到的相同表里的数据可能是不同的。
+            
+        MVCC优缺点
+            MVCC在大多数情况下代替了行锁，实现了对读的非阻塞，读不加锁，读写不冲突。缺点是每行记录都需要额外的存储空间，
+            需要做更多的行维护和检查工作。
+            
+        隐藏列
+            在每一行数据中额外保存两个隐藏的列：当前行创建时的版本号和删除时的版本号（可能为空，其实还有一列称为回滚指针，用于事务回滚，
+            不在本文范畴）。这里的版本号并不是实际的时间值，而是系统版本号。每开始新的事务，系统版本号都会自动递增。事务开始时刻的系统
+            版本号会作为事务的版本号，用来和查询每行记录的版本号进行比较。
+            
+        适用事务隔离级别
+            MVCC手段只适用于Msyql隔离级别中的读已提交（Read committed）和可重复读（Repeatable Read）.
+            避免了不可重复读和幻读,因为是快照读，别的事务进行添加等操作打上的id号不是早于当前事务的就不会被select
+        
+
     
     MySQL中有六种日志文件，分别是：重做日志（redo log）、回滚日志（undo log）、二进制日志（binlog）、错误日志（errorlog）、
     慢查询日志（slow query log）、一般查询日志（general log），中继日志（relay log）。
