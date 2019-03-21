@@ -5461,8 +5461,116 @@
             （2）构造并发送请求数据；
             （3）处理leader broker的变更；
         
-    16.kafka       
+    16.Kafka如何解决数据堆积
+        1.可能是消费线程不足导致的,一般是线程数和分区数相同.
+        2.增加 session.timeout.ms 时间 或者 减少 max.poll.records。max.poll.interval.ms这个参数，默认是300s。这个参数的大概
+            意思就是kafka消费者在一次poll内，业务处理时间不能超过这个时间。后来升级了kafka版本，把max.poll.records改成了50个之后，
+            上了一次线，准备观察一下
+        3.消费业务是否处理数据过慢,比如DB查询.
+            
+        
+    17.kafka生产者消费者流程
+        生产者
+            1.初始化以及真正发送消息的 kafka-producer-network-thread IO 线程。
+            2.将消息序列化。
+            3.得到需要发送的分区。(路由)
+            4.写入内部的一个缓存区中。
+            5.初始化的 IO 线程不断的消费这个缓存来发送消息。
+            
+            路由分区
+                1.指定分区
+                    可以在构建 ProducerRecord 为每条消息指定分区。
+                
+                2.自定义路由策略
+                    如果没有指定分区，则会调用 partitioner.partition 接口执行自定义分区策略。
+                
+                3.默认策略
+                    最后一种则是默认的路由策略，如果我们啥都没做就会执行该策略。
+                    该策略也会使得消息分配的比较均匀。
+                        默认策略步骤
+                        获取 Topic 分区数。
+                        将内部维护的一个线程安全计数器 +1。
+                        与分区数取模得到分区编号。
+                                
+            Producer 参数解析
+                    
+                acks
+                    acks 是一个影响消息吞吐量的一个关键参数。
+                    主要有 [all、-1, 0, 1] 这几个选项，默认为 1。
+                    由于 Kafka 不是采取的主备模式，而是采用类似于 Zookeeper 的主备模式。
+                    前提是 Topic 配置副本数量 replica > 1。
+                    
+                    当 acks = all/-1 时：
+                    意味着会确保所有的 follower 副本都完成数据的写入才会返回。
+                    这样可以保证消息不会丢失！
+                    但同时性能和吞吐量却是最低的。
+                    
+                    当 acks = 0 时：
+                    producer 不会等待副本的任何响应，这样最容易丢失消息但同时性能却是最好的！
+            
+                    当 acks = 1 时：
+                    这是一种折中的方案，它会等待副本 Leader 响应，但不会等到 follower 的响应。
+                    一旦 Leader 挂掉消息就会丢失。但性能和消息安全性都得到了一定的保证。
+        
+                batch.size
+                    这个参数看名称就知道是内部缓存区的大小限制，对他适当的调大可以提高吞吐量。
+                    但也不能极端，调太大会浪费内存。小了也发挥不了作用，也是一个典型的时间和空间的权衡,
+                    但是会造成一定的消息延迟。
+                
+                retries(可能会导致消息重复和消息顺序不一致)
+                    retries 该参数主要是来做重试使用，当发生一些网络抖动都会造成重试。
+                    这个参数也就是限制重试次数。
+                    但也有一些其他问题。
+                        1.因为是重发所以消息顺序可能不会一致，这也是上文提到就算是一个分区消息也不会是完全顺序的情况。
+                        2.还是由于网络问题，本来消息已经成功写入了但是没有成功响应给 producer，进行重试时就可能会出现消息重复。
+                        这种只能是消费者进行幂等处理。
+                        
+        消费者
+            触发rebalance的情况
+                消费组中新增消费实例。
+                消费组中消费实例 down 掉。
+                订阅的 Topic 分区数发生变化。
+                如果是正则订阅 Topic 时，匹配的 Topic 数发生变化也会导致 Rebalance。
+                所以推荐使用这样的方式消费数据，同时扩展性也非常好。当性能不足新增分区时只需要启动新的消费实例加入到消费组中即可。
+                
+    18.位移管理(offset management)
+           自动VS手动
+               Kafka默认是定期帮你自动提交位移的(enable.auto.commit = true)，你当然可以选择手动提交位移实现自己控制。
+               另外kafka会定期把group消费情况保存起来，做成一个offset map
+               
+           位移提交
+               老版本的位移是提交到zookeeper中的，图就不画了，总之目录结构是：/consumers/<group.id>/offsets/<topic>/<partitionId>，
+               *但是zookeeper其实并不适合进行大批量的读写操作，尤其是写操作。因此kafka提供了另一种解决方案：增加__consumeroffsets topic，
+               将offset信息写入这个topic，摆脱对zookeeper的依赖(指保存offset这件事情)。__consumer_offsets中的消息保存了每个
+               consumer group某一时刻提交的offset信息。
+               
+    19.协调器
+       在 kafka-0.10 版本，Kafka 在服务端引入了组协调器(GroupCoordinator)，每个 Kafka Server 启动时都会创建一个
+        GroupCoordinator 实例，用于管理部分消费者组和该消费者组下的每个消费者的消费偏移量。同时在客户端引入了
+        消费者协调器(ConsumerCoordinator)，实例化一个消费者就会实例化一个 ConsumerCoordinator 对象，ConsumerCoordinator 
+        负责同一个消费者组下各消费者与服务端的 GroupCoordinator 进行通信。
+        
+    20.ISR机制(in-sync Replica)
+       https://blog.csdn.net/qq_37502106/article/details/80271800
+           kafka不是完全同步，也不是完全异步，是一种ISR机制： 
+               1. leader会维护一个与其基本保持同步的Replica列表，该列表称为ISR(in-sync Replica)，每个Partition都会有一个ISR，而且是由leader动态维护 
+               2. 如果一个flower比一个leader落后太多，或者超过一定时间未发起数据复制请求，则leader将其重ISR中移除 
+               3. 当ISR中所有Replica都向Leader发送ACK时，leader才commit
     
+           配置
+              rerplica.lag.time.max.ms=10000
+              # 如果leader发现flower超过10秒没有向它发起fech请求，那么leader考虑这个flower是不是程序出了点问题
+              # 或者资源紧张调度不过来，它太慢了，不希望它拖慢后面的进度，就把它从ISR中移除。
+            
+              rerplica.lag.max.messages=4000 # 相差4000条就移除
+              # flower慢的时候，保证高可用性，同时满足这两个条件后又加入ISR中，
+              # 在可用性与一致性做了动态平衡   亮点
+              
+       AR = ISR + OSR
+              
+    
+            
+            
 ###结束
 
     Kafka 生产者
@@ -9117,6 +9225,163 @@
         
 ##18.dubbo
     http://dubbo.apache.org/zh-cn/docs/user/demos/thread-model.html (必读)
+    
+    
+###目录
+    1.dubbo 熔断，限流，降级
+          超时（timeout）
+              在接口调用过程中，consumer调用provider的时候，provider在响应的时候，有可能会慢，如果provider 10s响应，那么consumer也
+              会至少10s才响应。如果这种情况频度很高，那么就会整体降低consumer端服务的性能。
+              这种响应时间慢的症状，就会像一层一层波浪一样，从底层系统一直涌到最上层，造成整个链路的超时。
+              所以，consumer不可能无限制地等待provider接口的返回，会设置一个时间阈值，如果超过了这个时间阈值，就不继续等待。
+              这个超时时间选取，一般看provider正常响应时间是多少，再追加一个buffer即可。
+          重试（retry）
+              但是也有可能provider只是偶尔抖动，那么超时后直接放弃，不做后续处理，就会导致当前请求错误，也会带来业务方面的损失。
+              那么，对于这种偶尔抖动，可以在超时后重试一下，重试如果正常返回了，那么这次请求就被挽救了，能够正常给前端返回数据，只不过比原来响应慢一点。
+              重试时的一些细化策略：
+              重试可以考虑切换一台机器来进行调用，因为原来机器可能由于临时负载高而性能下降，重试会更加剧其性能问题，而换一台机器，
+              得到更快返回的概率也更大一些。
+              
+              幂等(idempotent)
+                  如果允许consumer重试，那么provider就要能够做到幂等。
+                  即，同一个请求被consumer多次调用，对provider产生的影响(这里的影响一般是指某些写入相关的操作) 是一致的。
+                  而且这个幂等应该是服务级别的，而不是某台机器层面的，重试调用任何一台机器，都应该做到幂等。
+                  
+          熔断（circuit break）
+              如果是一个不那么重要的服务，却因为这个服务一直响应时间长导致consumer里面的核心服务也拖慢，那么就得不偿失了。
+              单纯超时也解决不了这种情况了，因为一般超时时间，都比平均响应时间长一些，现在所有的打到provider的请求都超时了，
+              那么consumer请求provider的平均响应时间就等于超时时间了，负载也被拖下来了。
+              而重试则会加重这种问题，使consumer的可用性变得更差。
+              因此就出现了熔断的逻辑，也就是，如果检查出来频繁超时，就把consumer调用provider的请求，直接短路掉，不实际调用，
+              而是直接返回一个mock的值。
+              等provider服务恢复稳定之后，重新调用。
+              
+          限流(current limiting)
+              上面几个策略都是consumer针对provider出现各种情况而设计的。
+              而provider有时候也要防范来自consumer的流量突变问题。
+              这样一个场景，provider是一个核心服务，给N个consumer提供服务，突然某个consumer抽风，流量飙升，占用了provider大部分
+              机器时间，导致其他可能更重要的consumer不能被正常服务。
+              所以，provider端，需要根据consumer的重要程度，以及平时的QPS大小，来给每个consumer设置一个流量上线，同一时间内
+              只会给A consumer提供N个线程支持，超过限制则等待或者直接拒绝。
+          
+              资源隔离
+                  provider可以对consumer来的流量进行限流，防止provider被拖垮。 
+                  同样，consumer 也需要对调用provider的线程资源进行隔离。 这样可以确保调用某个provider逻辑不会耗光整个consumer的线程池资源。
+          
+          服务降级
+              降级服务既可以代码自动判断，也可以人工根据突发情况切换。
+          
+              consumer 端
+                  consumer 如果发现某个provider出现异常情况，比如，经常超时(可能是熔断引起的降级)，数据错误，这是，consumer可以采取一定的
+                  策略，降级provider的逻辑，基本的有直接返回固定的数据。
+              provider 端
+                  当provider 发现流量激增的时候，为了保护自身的稳定性，也可能考虑降级服务。 
+                  比如，1，直接给consumer返回固定数据，2，需要实时写入数据库的，先缓存到队列里，异步写入数据库。
+                  
+    2.*集群容错
+            在集群调用失败时，Dubbo 提供了多种容错方案，缺省为 failover(故障转移) 重试。
+            各节点关系：
+            
+            这里的 Invoker 是 Provider 的一个可调用 Service 的抽象，Invoker 封装了 Provider 地址及 Service 接口信息
+            Directory 代表多个 Invoker，可以把它看成 List<Invoker> ，但与 List 不同的是，它的值可能是动态变化的，比如注册中心推送变更
+            Cluster 将 Directory 中的多个 Invoker 伪装成一个 Invoker，对上层透明，伪装过程包含了容错逻辑，调用失败后，重试另一个
+            Router 负责从多个 Invoker 中按路由规则选出子集，比如读写分离，应用隔离等
+            LoadBalance 负责从多个 Invoker 中选出具体的一个用于本次调用，选的过程包含了负载均衡算法，调用失败后，需要重选
+            
+            集群容错模式
+                Failover Cluster
+                失败自动切换，当出现失败，重试其它服务器 [1]。通常用于读操作，但重试会带来更长延迟。可通过 retries="2" 来设置重试次数(不含第一次)。
+                
+                Failfast Cluster
+                快速失败，只发起一次调用，失败立即报错。通常用于非幂等性的写操作，比如新增记录。
+                
+                Failsafe Cluster
+                失败安全，出现异常时，直接忽略。通常用于写入审计日志等操作。
+                
+                Failback Cluster
+                失败自动恢复，后台记录失败请求，定时重发。通常用于消息通知操作。
+                
+                Forking Cluster
+                并行调用多个服务器，只要一个成功即返回。通常用于实时性要求较高的读操作，但需要浪费更多服务资源。可通过 forks="2" 来设置最大并行数。
+                
+                Broadcast Cluster
+                广播调用所有提供者，逐个调用，任意一台报错则报错 [2]。通常用于通知所有提供者更新缓存或日志等本地资源信息。
+
+            集群模式配置
+                按照以下示例在服务提供方和消费方配置集群模式
+                
+                <dubbo:service cluster="failsafe" />
+                或
+                <dubbo:reference cluster="failsafe" />
+        
+    3*负载均衡
+            在集群负载均衡时，Dubbo 提供了多种均衡策略，缺省为 random 随机调用。
+            负载均衡策略
+                Random LoadBalance
+                    随机，按权重设置随机概率。
+                    在一个截面上碰撞的概率高，但调用量越大分布越均匀，而且按概率使用权重后也比较均匀，有利于动态调整提供者权重。
+                RoundRobin LoadBalance
+                    轮询，按公约后的权重设置轮询比率。
+                    存在慢的提供者累积请求的问题，比如：第二台机器很慢，但没挂，当请求调到第二台时就卡在那，久而久之，所有请求都卡在调到第二台上。
+                LeastActive LoadBalance
+                    最少活跃调用数，相同活跃数的随机，活跃数指调用前后计数差。
+                    使慢的提供者收到更少请求，因为越慢的提供者的调用前后计数差会越大。
+                ConsistentHash LoadBalance
+                    一致性 Hash，相同参数的请求总是发到同一提供者。
+                    当某一台提供者挂时，原本发往该提供者的请求，基于虚拟节点，平摊到其它提供者，不会引起剧烈变动。
+                    算法参见：http://en.wikipedia.org/wiki/Consistent_hashing
+                    缺省只对第一个参数 Hash，如果要修改，请配置 <dubbo:parameter key="hash.arguments" value="0,1" />
+                    缺省用 160 份虚拟节点，如果要修改，请配置 <dubbo:parameter key="hash.nodes" value="320" />
+
+    4*整体设计
+         http://dubbo.apache.org/zh-cn/docs/source_code_guide/service-invoking-process.html
+             各层说明
+                 config 配置层：对外配置接口，以 ServiceConfig, ReferenceConfig 为中心，可以直接初始化配置类，也可以通过 spring 解析配置生成配置类
+                 proxy 服务代理层：服务接口透明代理，生成服务的客户端 Stub 和服务器端 Skeleton, 以 ServiceProxy 为中心，扩展接口为 ProxyFactory
+                 registry 注册中心层：封装服务地址的注册与发现，以服务 URL 为中心，扩展接口为 RegistryFactory, Registry, RegistryService
+                 cluster 路由层：封装多个提供者的路由及负载均衡，并桥接注册中心，以 Invoker 为中心，扩展接口为 Cluster, Directory, Router, LoadBalance
+                 monitor 监控层：RPC 调用次数和调用时间监控，以 Statistics 为中心，扩展接口为 MonitorFactory, Monitor, MonitorService
+                 protocol 远程调用层：封装 RPC 调用，以 Invocation, Result 为中心，扩展接口为 Protocol, Invoker, Exporter
+                 exchange 信息交换层：封装请求响应模式，同步转异步，以 Request, Response 为中心，扩展接口为 Exchanger, ExchangeChannel, ExchangeClient, ExchangeServer
+                 transport 网络传输层：抽象 mina 和 netty 为统一接口，以 Message 为中心，扩展接口为 Channel, Transporter, Client, Server, Codec
+                 serialize 数据序列化层：可复用的一些工具，扩展接口为 Serialization, ObjectInput, ObjectOutput, ThreadPool
+                
+             关系说明
+                 在 RPC 中，Protocol 是核心层，也就是只要有 Protocol + Invoker + Exporter 就可以完成非透明的 RPC 调用，然后在 Invoker 的主过程上 Filter 拦截点。
+                 图中的 Consumer 和 Provider 是抽象概念，只是想让看图者更直观的了解哪些类分属于客户端与服务器端，不用 Client 和 Server 的原因是 Dubbo 在很多场景下都使用 Provider, Consumer, Registry, Monitor 划分逻辑拓普节点，保持统一概念。
+                 而 Cluster 是外围概念，所以 Cluster 的目的是将多个 Invoker 伪装成一个 Invoker，这样其它人只要关注 Protocol 层 Invoker 即可，加上 Cluster 或者去掉 Cluster 对其它层都不会造成影响，因为只有一个提供者时，是不需要 Cluster 的。
+                 Proxy 层封装了所有接口的透明化代理，而在其它层都以 Invoker 为中心，只有到了暴露给用户使用时，才用 Proxy 将 Invoker 转成接口，或将接口实现转成 Invoker，也就是去掉 Proxy 层 RPC 是可以 Run 的，只是不那么透明，不那么看起来像调本地服务一样调远程服务。
+                 而 Remoting 实现是 Dubbo 协议的实现，如果你选择 RMI 协议，整个 Remoting 都不会用上，Remoting 内部再划为 Transport 传输层和 Exchange 信息交换层，Transport 层只负责单向消息传输，是对 Mina, Netty, Grizzly 的抽象，它也可以扩展 UDP 传输，而 Exchange 层是在传输层之上封装了 Request-Response 语义。
+                 Registry 和 Monitor 实际上不算一层，而是一个独立的节点，只是为了全局概览，用层的方式画在一起。
+             
+             经历多次调用，到这里请求数据的发送过程就结束了，过程漫长。为了便于大家阅读代码，这里以 DemoService 为例，将 sayHello 方法的整个调用路径贴出来。
+    
+    5.服务治理
+          服务治理主要作用是改变运行时服务的行为和选址逻辑，达到限流，权重配置等目的，主要有以下几个功能：
+          
+          应用级别的服务治理
+              此Dubbo2.7版本中增加了应用粒度的服务治理操作，对于条件路由(包括黑白名单)，动态配置(包括权重，负载均衡)都可以做应用级别的配置：
+              上图是条件路由的配置，可以按照应用名，服务名两个维度来填写，也可以按照这两个维度来查询。
+              
+          标签路由
+              路由方法包括:条件路由和标签路由
+              调用的时候，客户端可以通过setAttachment的方式，来设置不同的标签名称，比如本例中，setAttachment(tag1)，
+              客户端的选址范围就在如图所示的三台机器中，可以通过这种方式来实现流量隔离，灰度发布等功能。
+              
+          黑白名单
+              黑白名单是条件路由的一部分，规则存储和条件路由放在一起，为了方便配置所以单独拿出来，同样可以通过服务和应用两个维度，指定黑名单和白名单
+              
+          动态配置
+              动态配置是和路由规则平行的另一类服务治理治理功能，主要作用是在不重启服务的情况下，动态改变调用行为，从Dubbo2.7版本开始，
+              支持服务和应用两个维度的配置，采用yaml格式
+              
+          权重调节
+              权重调节是动态配置的子功能，主要作用是改变服务端的权重，更大的权重会有更大的几率被客户端选中作为服务提供者，
+              从而达到流量分配的目的
+    
+    
+    
+###结束
 
 
     服务治理和配置管理
@@ -9144,7 +9409,6 @@
                 从而达到流量分配的目的
                 
     dubbo流程
-        
         启动时检查
             Dubbo 缺省会在启动时检查依赖的服务是否可用，不可用时会抛出异常，阻止 Spring 初始化完成，以便上线时，能及早发现问题，
             默认 check="true"。
@@ -9474,6 +9738,10 @@
                 比如，1，直接给consumer返回固定数据，2，需要实时写入数据库的，先缓存到队列里，异步写入数据库。
                 
 ##netty
+
+###目录
+
+###结束
     https://juejin.im/post/5a228cc15188254cc067aef8 (必看)
     
     Netty提供了高性能与易用性，它具有以下特点：
@@ -9725,8 +9993,409 @@
                 
                 
 ##spark
-https://blog.csdn.net/pengzonglu7292/article/details/80554507   (面试题)
-https://juejin.im/post/58d8daedac502e0058d9edf0 (整体介绍)
+    https://blog.csdn.net/pengzonglu7292/article/details/80554507   (面试题)
+    https://juejin.im/post/58d8daedac502e0058d9edf0 (整体介绍)
+###目录
+    1.Spark的组成,及其特点
+        组成
+            SparkSQL、Spark Streaming、GraphX、MLlib,Tachyon,Mesos,BlinkDB
+        特点
+            1.快,比MapReduce快很多
+            2.易用,支持Java、Python和Scala的API,API操作多
+            3.通用：Spark提供了统一的解决方案
+            4.兼容性
+        
+    2.spark高可用架构
+          Spark架构采用了分布式计算中的Master-Slave模型。Master是对应集群中的含有Master进程的节点，Slave是集群中含有Worker进程的节点。
+              Master作为整个集群的控制器，负责整个集群的正常运行；Worker相当于是计算节点，接收主节点命令与进行状态汇报；Executor负责任务的执行；
+              Client作为用户的客户端负责提交应用，Driver负责控制一个应用的执行.
+              
+          Spark集群部署后,需要在主节点和从节点分别启动master进程和Worker进程,对整个集群进行控制.在一个Spark应用的执行程序中.
+              Driver和Worker是两个重要的角色.Driver程序是应用逻辑执行的起点，负责作业的调度,即Task任务的发布,而多个Worker用来管理计算
+              节点和创建Executor并行处理任务.在执行阶段,Driver会将Task和Task所依赖的file和jar序列化后传递给对应的Worker机器.
+              同时Executor对相应数据分区的任务进行处理.
+              
+          spark解决单点问题
+                启动后执行jps命令，主节点上有Master进程，其他子节点上有Work进行，登录Spark管理界面查看集群状态（主节点）：http://node-1:8080/
+                到此为止，Spark集群安装完毕，但是有一个很大的问题，那就是Master节点存在单点故障，要解决此问题，就要借助zookeeper，
+                并且启动至少两个Master节点来实现高可靠，配置方式比较简单：
+                Spark集群规划：node-1，node-2是Master；node-3，node-4，node-5是Worker
+                安装配置zk集群，并启动zk集群
+                停止spark所有服务，修改配置文件spark-env.sh，在该配置文件中删掉SPARK_MASTER_IP并添加如下配置
+                export SPARK_DAEMON_JAVA_OPTS="-Dspark.deploy.recoveryMode=ZOOKEEPER -Dspark.deploy.zookeeper.url=zk1,zk2,zk3 
+                -Dspark.deploy.zookeeper.dir=/spark"
+                1.在node1节点上修改slaves配置文件内容指定worker节点
+                2.在node1上执行$SPARK_HOME/sbin/start-all.sh，然后在node2上执行$SPARK_HOME/sbin/start-master.sh启动第二个Master
+                
+    3.Spark的架构中的基本组件有哪些
+          ClusterManager:在standlone模式中即为Master(主节点),控制整个集群.监控Worker.在Yarn模式中为资源管理器.
+          Worker:从节点,负责控制计算节点,启动Ex而粗投入或Driver
+          NodeManager:负责计算节点的控制。
+          Driver:运行Application的main() 函数并创建SparkContext
+          Executor: 执行器,在worker node上执行任务组件,用于启动线程执行任务.每个Application拥有独立的一组Executors
+          SparkContext: 整个应用的上下文,监控应用的生命周期
+          RDD:弹性分布式集合,spark的基本计算单元，一组RDD可形成执行的有向无环图RDD Graph
+          DAG Scheduler: 根据作业(Job)构建基于Stage的DAG,并交给Stage给TaskScheduler
+          TaskScheduler：将任务（Task）分发给Executor执行
+          SparkEnv：线程级别的上下文，存储运行时的重要组件的引用。SparkEnv内创建并包含如下一些重要组件的引用。
+          MapOutPutTracker：负责Shuffle元信息的存储。
+          BroadcastManager：负责广播变量的控制与元信息的存储。
+          BlockManager：负责存储管理、创建和查找块。
+          MetricsSystem：监控运行时性能指标信息。
+          SparkConf：负责存储配置信息。
+          *Spark的整体流程:client提交应用,Master找到一个Worker启动Driver,Driver向Master或者向资源管理器申请资源,之后将应用转化为RDD Graph，
+          再由DAGScheduler将RDD Graph转化为Stage的有向无环图提交给TaskScheduler，由TaskScheduler提交任务给Executor执行。
+          在任务执行的过程中，其他组件协同工作，确保整个应用顺利执行。
+  
+    4.说一下spark RDD
+          什么是RDD
+              RDD（Resilient Distributed Dataset）叫做分布式数据集，是Spark中最基本的数据抽象，它代表一个不可变、可分区、
+              里面的元素可并行计算的集合。RDD具有数据流模型的特点：自动容错、位置感知性调度和可伸缩性。RDD允许用户在执行多个查询时
+              显式地将工作集缓存在内存中，后续的查询能够重用工作集，这极大地提升了查询速度。
+          RDD的属性
+              *一组分片（Partition），即数据集的基本组成单位。对于RDD来说，每个分片都会被一个计算任务处理，并决定并行计算的粒度。
+              用户可以在创建RDD时指定RDD的分片个数，如果没有指定，那么就会采用默认值。默认值就是程序所分配到的CPU Core的数目。
+              一个计算每个分区的函数。Spark中RDD的计算是以分片为单位的，每个RDD都会实现compute函数以达到这个目的。compute函数
+              会对迭代器进行复合，不需要保存每次计算的结果。
+              RDD之间的依赖关系。RDD的每次转换都会生成一个新的RDD，所以RDD之间就会形成类似于流水线一样的前后依赖关系。在部分
+              分区数据丢失时，Spark可以通过这个依赖关系重新计算丢失的分区数据，而不是对RDD的所有分区进行重新计算。
+              一个Partitioner，即RDD的分片函数。当前Spark中实现了两种类型的分片函数，一个是基于哈希的HashPartitioner，
+              另外一个是基于范围的RangePartitioner。只有对于于key-value的RDD，才会有Partitioner，非key-value的RDD的
+              Parititioner的值是None。Partitioner函数不但决定了RDD本身的分片数量，也决定了parent RDD Shuffle输出时的分片数量。
+              一个列表，存储存取每个Partition的优先位置（preferred location）。对于一个HDFS文件来说，这个列表保存的就是每个
+              Partition所在的块的位置。按照“移动数据不如移动计算”的理念，Spark在进行任务调度的时候，会尽可能地将计算任务分配
+              到其所要处理数据块的存储位置。
+          RDD创建
+              一旦分布式数据集（distData）被创建好，它们将可以被并行操作。例如，我们可以调用distData.reduce(lambda a, b: a + b)
+              来将数组的元素相加。我们会在后续的分布式数据集运算中进一步描述。
+              并行集合的一个重要参数是slices，表示数据集切分的份数。Spark将会在集群上为每一份数据起一个任务。典型地，
+              你可以在集群的每个CPU上分布2-4个slices. 一般来说，Spark会尝试根据集群的状况，来自动设定slices的数目。然而，
+              你也可以通过传递给parallelize的第二个参数来进行手动设置。（例如：sc.parallelize(data, 10)).
+    
+    5.如何设置合理的分区数
+            理解从HDFS读入文件默认是怎样分区的
+                Spark从HDFS读入文件的分区数默认等于HDFS文件的块数(blocks)，HDFS中的block是分布式存储的最小单元。
+                如果我们上传一个30GB的非压缩的文件到HDFS，HDFS默认的块容量大小128MB，因此该文件在HDFS上会被分为235块(30GB/128MB)；
+                Spark读取SparkContext.textFile()读取该文件，默认分区数等于块数即235。
+                            
+            如何设置合理的分区数
+                1、分区数越多越好吗？
+                    (上下文切换)不是的，分区数太多意味着任务数太多，每次调度任务也是很耗时的，所以分区数太多会导致总体耗时增多。
+                2、分区数太少会有什么影响？
+                    分区数太少的话，会导致一些结点没有分配到任务；另一方面，分区数少则每个分区要处理的数据量就会增大，从而对每个结点的内存
+                    要求就会提高；还有分区数不合理，会导致数据倾斜问题。
+                3、合理的分区数是多少？如何设置？
+                    总核数=executor-cores * num-executor 
+                    一般合理的分区数设置为总核数的2~3倍
+                    
+    6.说一下spark的内存,怎么管理的?
+        *spark内存管理
+            下文介绍的内存模型全部指 Executor 端的内存模型， Driver 端的内存模型本文不做介绍。统一内存管理模块包括了堆内内存
+            (On-heap Memory)和堆外内存(Off-heap Memory)两大区域，下面对这两块区域进行详细的说明
+            
+            *堆内内存(On-heap Memory)
+                默认情况下，Spark 仅仅使用了堆内内存。Executor 端的堆内内存区域大致可以分为以下四大块：
+                    1.Execution 内存：主要用于存放 Shuffle、Join、Sort、Aggregation 等计算过程中的临时数据
+                    2.Storage 内存：主要用于存储 spark 的 cache 数据，例如RDD的缓存、unroll数据；
+                    3.用户内存（User Memory）：主要用于存储 RDD 转换操作所需要的数据，例如 RDD 依赖等信息。
+                    4.预留内存（Reserved Memory）：系统预留内存，会用来存储Spark内部对象。
+                    
+                    systemMemory = Runtime.getRuntime.maxMemory，其实就是通过参数 spark.executor.memory 或 --executor-memory 配置的。
+                    reservedMemory 在 Spark 2.2.1 中是写死的，其值等于 300MB，这个值是不能修改的（如果在测试环境下，我们可以通过 
+                        spark.testing.reservedMemory 参数进行修改）；
+                    usableMemory = systemMemory - reservedMemory，这个就是 Spark 可用内存；
+                
+            堆外内存(Off-heap Memory)
+                默认情况下，堆外内存是关闭的，我们可以通过 spark.memory.offHeap.enabled 参数启用，并且通过 
+                spark.memory.offHeap.size 设置堆外内存大小，单位为字节。如果堆外内存被启用，那么 Executor 
+                内将同时存在堆内和堆外内存，两者的使用互补影响，这个时候 Executor 中的 Execution 内存是堆内的 
+                Execution 内存和堆外的 Execution 内存之和，同理，Storage 内存也一样。相比堆内内存，堆外内存只区分 
+                Execution 内存和 Storage 内存，其内存分布如下图所示：
+
+            *Execution 内存和 Storage 内存动态调整
+            https://www.iteblog.com/archives/2342.html
+                细心的同学肯定看到上面两张图中的 Execution 内存和 Storage 内存之间存在一条虚线，这是为什么呢？
+                
+                用过 Spark 的同学应该知道，在 Spark 1.5 之前，Execution 内存和 Storage 内存分配是静态的，换句话说就是如果
+                 Execution 内存不足，即使 Storage 内存有很大空闲程序也是无法利用到的；反之亦然。这就导致我们很难进行内存的调优工作，
+                 我们必须非常清楚地了解 Execution 和 Storage 两块区域的内存分布。而目前 Execution 内存和 Storage 内存可以互相共享的。
+                 也就是说，如果 Execution 内存不足，而 Storage 内存有空闲，那么 Execution 可以从 Storage 中申请空间；反之亦然。
+                 所以上图中的虚线代表 Execution 内存和 Storage 内存是可以随着运作动态调整的，这样可以有效地利用内存资源。
+                 Execution 内存和 Storage 内存之间的动态调整可以概括如下：
+                    
+                具体的实现逻辑如下：
+                    程序提交的时候我们都会设定基本的 Execution 内存和 Storage 内存区域（通过 spark.memory.storageFraction 参数设置）；
+                    在程序运行时，如果双方的空间都不足时，则存储到硬盘；将内存中的块存储到磁盘的策略是按照 LRU 规则进行的。
+                    若己方空间不足而对方空余时，可借用对方的空间;（存储空间不足是指不足以放下一个完整的 Block）
+                    Execution 内存的空间被对方占用后，可让对方将占用的部分转存到硬盘，然后"归还"借用的空间
+                    Storage 内存的空间被对方占用后，目前的实现是无法让对方"归还"，因为需要考虑 Shuffle 过程中的很多因素，
+                    实现起来较为复杂；而且 Shuffle 过程产生的文件在后面一定会被使用到，而 Cache 在内存的数据不一定在后面使用。
+                    注意，上面说的借用对方的内存需要借用方和被借用方的内存类型都一样，都是堆内内存或者都是堆外内存，
+                    不存在堆内内存不够去借用堆外内存的空间。
+            
+            *Task 之间内存分布
+                为了更好地使用内存，Executor 内运行的 Task 之间共享着 Execution 内存。具体的，Spark 内部维护了一个 HashMap
+                 用于记录每个 Task 占用的内存。当 Task 需要在 Execution 内存区域申请 numBytes 内存，其先判断 HashMap 
+                 里面是否维护着这个 Task 的内存使用情况，如果没有，则将这个 Task 内存使用置为0，并且以 TaskId 为 key，内存使用为 
+                 value 加入到 HashMap 里面。之后为这个 Task 申请 numBytes 内存，如果 Execution 内存区域正好有大于 numBytes 
+                 的空闲内存，则在 HashMap 里面将当前 Task 使用的内存加上 numBytes，然后返回；如果当前 Execution 内存区域
+                 无法申请到每个 Task 最小可申请的内存，则当前 Task 被阻塞，直到有其他任务释放了足够的执行内存，该任务才可以被唤醒。
+                *每个 Task 可以使用 Execution 内存大小范围为 1/2N ~ 1/N，其中 N 为当前 Executor 内正在运行的 Task 个数。一个 
+                 Task 能够运行必须申请到最小内存为 (1/2N * Execution 内存)；当 N = 1 的时候，Task 可以使用全部的 Execution 内存。
+                
+                比如如果 Execution 内存大小为 10GB，当前 Executor 内正在运行的 Task 个数为5，则该 Task 可以申请的内存范围为
+                 10 / (2 * 5) ~ 10 / 5，也就是 1GB ~ 2GB的范围。
+    7.宽依赖和窄依赖
+        宽依赖之间会划分stage，而Stage之间就是Shuffle，如图中的stage0，stage1和stage3之间就会产生Shuffle。
+        ShuffleManager随着Spark的发展有两种实现的方式，分别为HashShuffleManager和SortShuffleManager,现在用的是SortShuffle,
+        SortShuffleManager相较于HashShuffleManager来说，有了一定的改进。主要就在于，每个Task在进行shuffle操作时，虽然也会产生较多
+        的临时磁盘文件，但是最后会将所有的临时文件合并(merge)成一个磁盘文件，因此每个Task就只有一个磁盘文件。在下一个stage的shuffle 
+        read task拉取自己的数据时，只要根据索引读取每个磁盘文件中的部分数据即可
+        
+                
+    8.说一下spark的shuffle
+      https://blog.csdn.net/shujuelin/article/details/84100842    (比较详细,必看)
+           Shuffle简介
+               Shuffle描述着数据从map task输出到reduce task输入的这段过程。shuffle是连接Map和Reduce之间的桥梁，
+               Map的输出要用到Reduce中必须经过shuffle这个环节，shuffle的性能高低直接影响了整个程序的性能和吞吐量。
+               因为在分布式情况下，reduce task需要跨节点去拉取其它节点上的map task结果。这一过程将会产生网络资源消耗和内存，
+               磁盘IO的消耗。通常shuffle分为两部分：Map阶段的数据准备和Reduce阶段的数据拷贝处理。一般将在map端的Shuffle称之
+               为Shuffle Write，在Reduce端的Shuffle称之为Shuffle Read.
+       
+           map端的Shuffle简述:
+               1)input, 根据split输入数据，运行map任务;
+               2)patition, 每个map task都有一个内存缓冲区，存储着map的输出结果;
+               3)spill, 当缓冲区快满的时候需要将缓冲区的数据以临时文件的方式存放到磁盘;
+               4)merge, 当整个map task结束后再对磁盘中这个map task产生的所有临时文件做合并，生成最终的正式输出文件，然后等待reduce task来拉数据。
+           reduce 端的Shuffle简述:
+               reduce task在执行之前的工作就是不断地拉取当前job里每个map task的最终结果，然后对从不同地方拉取过来的数据不断地做merge，也最终形成一个文件作为reduce task的输入文件。
+               1) Copy过程，拉取数据。
+               2)Merge阶段，合并拉取来的小文件
+               3)Reducer计算
+               4)Output输出计算结果
+       
+           什么时候需要 shuffle writer
+           https://www.cnblogs.com/itboys/p/9201750.html
+               
+               中间就涉及到shuffle 过程，前一个stage 的 ShuffleMapTask 进行 shuffle write， 把数据存储在 blockManager 上面，
+                并且把数据位置元信息上报到 driver 的 mapOutTrack 组件中， 下一个 stage 根据数据位置元信息， 进行 shuffle read，
+                 拉取上个stage 的输出数据。
+               这篇文章讲述的就是其中的 shuffle write 过程。
+               
+           shuffle 写
+               版本二的优点:就是为了减少这么多小文件的生成 
+               bucket的数量=cpu*resultTask的个数 
+               版本二设计的原理:一个shuffleMapTask还是会写入resultTask对应个数的本地文件，但是当下一个shuffleMapTask运行的时候会直接把数据写到之前已经建立好的本地文件，这个文件可以复用，这种复用机制叫做consolidation机制 
+               我们把这一组的shuffle文件称为shuffleGroup,每个文件中都存储了很多shuffleMapTask对应的数据，这个文件叫做segment,这个时候因为不同的shuffleMapTask都是存在一个文件中 
+               所以建立索引文件，来标记shuffleMapTask在shuffleBlockFile的位置+偏移量，这样就可以在一个文件里面把不同的shuffleMaptask数据分出来 
+               spark shuffle的版本三 
+               版本三的优点：是通过排序建立索引，相比较于版本二，它只有一个临时文件，不管有多少个resultTask都只有一个临时文件， 
+               缺点:这个排序操作是一个消耗CPU的操作，代价是会消耗很多的cpu 
+               版本二占用内存多，打开文件多，但不需排序，速度快。版本三占用内存少，打开文件少，速度相对慢。实践证明使用第二种方案的应用场景更多些。 
+               shuffle的读流程 
+               
+           shuffle 读流程 
+               1.有一个类blockManager，封装了临时文件的位置信息,resultTask先通过blockManager,就知道我从哪个节点拿数据 
+               如果是远程，它就是发起一次socket请求，创建一个socket链接。然后发起一次远程调用，告诉远程的读取程序，读取哪些数据。读到的内容再通过socket传过来。 
+               2.一条条读数据和一块块读数据的优缺点？ 
+               如果是一条条读取的话，实时性好，性能低下
+               
+               一块块读取的话性能高，但是实时性不好
+               Shuffle读由reduce这边发起，它需要先到临时文件中读，一般这个临时文件和reduce不在一台节点上，它需要跨网络去读。但也不排除在一台服务器。不论如何它需要知道临时文件的位置， 
+               这个是谁来告诉它的呢？它有一个BlockManager的类。这里就知道将来是从本地文件中读取，还是需要从远程服务器上读取。 
+               读进来后再做join或者combine的运算。 
+               这些临时文件的位置就记录在Map结构中。 
+               可以这样理解分区partition是RDD存储数据的地方，实际是个逻辑单位，真正要取数据时，它就调用BlockManage去读，它是以数据块的方式来读。 
+               比如一次读取32k还是64k。它不是一条一条读，一条一条读肯定性能低。它读时首先是看本地还是远程，如果是本地就直接读这个文件了， 
+               如果是远程，它就是发起一次socket请求，创建一个socket链接。然后发起一次远程调用，告诉远程的读取程序，读取哪些数据。读到的内容再通过socket传过来。
+           
+           Spark中的shuffle是在干嘛？
+               Shuffle在Spark中即是把父RDD中的KV对按照Key重新分区，从而得到一个新的RDD。也就是说原本同属于父RDD同一个分区的数据需要进入到子RDD的不同的分区。
+               但这只是shuffle的过程，却不是shuffle的原因。为何需要shuffle呢？
+               
+           Shuffle和Stage
+               在分布式计算框架中，比如map-reduce，数据本地化是一个很重要的考虑，即计算需要被分发到数据所在的位置，从而减少数据的移动，提高运行效率。
+               Map-Reduce的输入数据通常是HDFS中的文件，所以数据本地化要求map任务尽量被调度到保存了输入文件的节点执行。但是，
+               有一些计算逻辑是无法简单地获取本地数据的，reduce的逻辑都是如此。对于reduce来说，处理函数的输入是key相同的所有value，
+               但是这些value所在的数据集(即map的输出)位于不同的节点上，因此需要对map的输出进行重新组织，使得同样的key进入相同的reducer。
+                shuffle移动了大量的数据，对计算、内存、网络和磁盘都有巨大的消耗，因此，只有确实需要shuffle的地方才应该进行shuffle。
+               
+           Stage的划分
+               对于Spark来说，计算的逻辑存在于RDD的转换逻辑中。Spark的调度器也是在依据数据本地化在调度任务，只不过此处的“本地”不仅包括磁盘文件，
+               也包括RDD的分区， Spark会使得数据尽量少地被移动，据此，DAGScheduler把一个job划分为多个Stage，在一个Stage内部，
+               数据是不需要移动地，数据会在本地经过一系列函数的处理，直至确实需要shuffle的地方。
+               
+           Shuffle
+                HashShuffle
+                SortShuffle
+    
+    9.spark数据读取 
+          CSV
+          TSV 
+              val spark = SparkSession.builder().appName("fileRead").getOrCreate()
+                      import spark.implicits._
+                      val data1 = spark.read
+                          //          推断数据类型
+                          .option("inferSchema", true)
+                          //          设置空值
+                          .option("nullValue", "?")
+                          //          表示有表头，若没有则为false
+                          .option("header", true)
+                          //          文件路径
+                          .csv("ds/block_10.csv")
+                          //          缓存
+                          .cache()
+                      //          打印数据格式
+                      data1.printSchema()
+                      //      显示数据,false参数为不要把数据截断
+                      data1.show(false)
+                  
+          JSON文件
+              val jsonpath = "/home/wmx/hive/warehouse/trail/sample40.json"
+              val data3 = spark.read.json(jsonpath).cache()
+              data3.printSchema()
+              // 因为有点多只显示1条，不截断
+              data3.show(1,false)
+                      
+                      
+    10.列式存储和行式存储相比有哪些优势呢？
+          可以跳过不符合条件的数据，只读取需要的数据，降低IO数据量。 
+          压缩编码可以降低磁盘存储空间。由于同一列的数据类型是一样的，可以使用更高效的压缩编码（例如Run Length Encoding和Delta Encoding）进一步节约存储空间。 
+          只读取需要的列，支持向量运算，能够获取更好的扫描性能。
+      
+      spark 入门map reduce 最好的几个例子
+      https://blog.csdn.net/u013851082/article/details/70142806
+              
+    11,广播变量和累加器
+          1、能不能将一个RDD使用广播变量广播出去？
+                 不能，因为RDD是不存储数据的。可以将RDD的结果广播出去。
+          2、 广播变量只能在Driver端定义，不能在Executor端定义。
+          3、 在Driver端可以修改广播变量的值，在Executor端无法修改广播变量的值。
+          4、如果executor端用到了Driver的变量，如果不使用广播变量在Executor有多少task就有多少Driver端的变量副本。
+          5、如果Executor端用到了Driver的变量，如果使用广播变量在每个Executor中只有一份Driver端的变量副本。
+          如何更新广播变量
+          通过unpersist()将老的广播变量删除，然后重新广播一遍新的广播变量
+          
+          累加器在Driver端定义赋初始值，累加器只能在Driver端读取最后的值，在Excutor端更新。
+              
+    12.Spark job 的执行流程简介
+              我们可以发现，Spark 应用程序在提交执行后，控制台会打印很多日志信息，这些信息看起来是杂乱无章的，但是却在一定程度上体现了一个被提交的
+               Spark job 在集群中是如何被调度执行的，那么在这一节，将会向大家介绍一个典型的 Spark job 是如何被调度执行的。
+              
+              我们先来了解以下几个概念：
+              DAG: 即 Directed Acyclic Graph，有向无环图，这是一个图论中的概念。如果一个有向图无法从某个顶点出发经过若干条边回到该点，
+                则这个图是一个有向无环图。
+              Job：我们知道，Spark 的计算操作是 lazy 执行的，只有当碰到一个动作 (Action) 算子时才会触发真正的计算。一个 Job 就是由
+                动作算子而产生包含一个或多个 Stage 的计算作业。
+              Stage：Job 被确定后,Spark 的调度器 (DAGScheduler) 会根据该计算作业的计算步骤把作业划分成一个或者多个 Stage。Stage 
+                又分为 ShuffleMapStage 和 ResultStage，前者以 shuffle 为输出边界，后者会直接输出结果，其边界可以是获取外部数据，
+                也可以是以一个 ShuffleMapStage 的输出为边界。每一个 Stage 将包含一个 TaskSet。
+              TaskSet：代表一组相关联的没有 shuffle 依赖关系的任务组成任务集。一组任务会被一起提交到更加底层的 TaskScheduler。
+              Task：代表单个数据分区上的最小处理单元。分为 ShuffleMapTask 和 ResultTask。ShuffleMapTask 执行任务并把任务的输出划分到
+                (基于 task 的对应的数据分区) 多个 bucket(ArrayBuffer) 中,ResultTask 执行任务并把任务的输出发送给驱动程序。
+              Spark 的作业任务调度是复杂的，需要结合源码来进行较为详尽的分析，但是这已经超过本文的范围，所以这一节我们只是对大致的流程进行分析。
+              Spark 应用程序被提交后，当某个动作算子触发了计算操作时，SparkContext 会向 DAGScheduler 提交一个作业，接着 DAGScheduler
+                会根据 RDD 生成的依赖关系划分 Stage，并决定各个 Stage 之间的依赖关系，Stage 之间的依赖关系就形成了 DAG。Stage 的
+                划分是以 ShuffleDependency 为依据的，也就是说当某个 RDD 的运算需要将数据进行 Shuffle 时，这个包含了 Shuffle 依赖
+                关系的 RDD 将被用来作为输入信息，进而构建一个新的 Stage。我们可以看到用这样的方式划分 Stage，能够保证有依赖关系的数据
+                可以以正确的顺序执行。根据每个 Stage 所依赖的 RDD 数据的 partition 的分布，会产生出与 partition 数量相等的 Task，
+                这些 Task 根据 partition 的位置进行分布。其次对于 finalStage 或是 mapStage 会产生不同的 Task，最后所有的 Task 
+                会封装到 TaskSet 内提交到 TaskScheduler 去执行。有兴趣的读者可以通过阅读 DAGScheduler 和 TaskScheduler 的源码
+                获取更详细的执行流程。
+          
+          数据源自并行集合
+              调用 SparkContext 的 parallelize 方法，在一个已经存在的 Scala 集合上创建一个 Seq 对象
+          
+          外部数据源
+              Spark支持任何 Hadoop InputFormat 格式的输入，如本地文件、HDFS上的文件、Hive表、HBase上的数据、Amazon S3、Hypertable等，
+              以上都可以用来创建RDD。
+              常用函数是 sc.textFile() ,参数是Path和最小分区数[可选]。Path是文件的 URI 地址，该地址可以是本地路径，或者 hdfs://、s3n:// 
+              等 URL 地址。其次，使用本地文件时，如果在集群上运行要确保worker节点也能访问到文件
+          
+          提交应用的脚本和可选参数
+              可以选择local模式下运行来测试程序，但要是在集群上运行还需要通过spark-submit脚本来完成。官方文档上的示例是这样写的（其中表明哪些是必要参数）：
+              
+              ./bin/spark-submit \
+                --class <main-class> \
+                --master <master-url> \
+                --deploy-mode <deploy-mode> \
+                --conf <key>=<value> \
+                ... # other options
+                <application-jar> \
+                [application-arguments]
+              常用参数如下：
+              
+              --master 参数来设置 SparkContext 要连接的集群，默认不写就是local[*]【可以不用在SparkContext中写死master信息】
+              
+              --jars 来设置需要添加到 classpath 中的 JAR 包，有多个 JAR 包使用逗号分割符连接
+              
+              --class 指定程序的类入口
+              
+              --deploy-mode 指定部署模式，是在 worker 节点（cluster）上还是在本地作为一个外部的客户端（client）部署您的 driver（默认 : client）
+              
+              这里顺便提一下yarn-client和yarn-cluster区别 cluster-client
+              
+              application-jar : 包括您的应用以及所有依赖的一个打包的 Jar 的路径。该Jar包的 URL 在您的集群上必须是全局可见的，例如，一个 hdfs:// path 或者一个 file:// path 在所有节点是可见的。
+              
+              application-arguments : 传递到您的 main class 的 main 方法的参数
+              
+              driver-memory是 driver 使用的内存，不可超过单机的最大可使用的
+              
+              num-executors是创建多少个 executor
+              
+              executor-memory是各个 executor 使用的最大内存，不可超过单机的最大可使用内存
+              
+              executor-cores是每个 executor 最大可并发执行的 Task 数目
+              
+              #如下是spark on yarn模式下运行计算Pi的测试程序
+              # 有一点务必注意，每行最后换行时务必多敲个空格，否则解析该语句时就是和下一句相连的，不知道会爆些什么古怪的错误
+              [hadoop@master spark-2.4.0-bin-hadoop2.6]$ ./bin/spark-submit \
+              > --master yarn \
+              > --class org.apache.spark.examples.SparkPi \
+              > --deploy-mode client \
+              > --driver-memory 1g \
+              > --num-executors 2 \
+              > --executor-memory 2g \
+              > --executor-cores 2 \
+              > examples/jars/spark-examples_2.11-2.4.0.jar \
+              > 10
+              每次提交都写这么多肯定麻烦，可以写个脚本
+              
+              从文件中加载配置
+              spark-submit 脚本可以从一个 properties 文件加载默认的 Spark configuration values 并且传递它们到您的应用中去。默认情况下，它将从 Spark 目录下的 conf/spark-defaults.conf 读取配置。更多详细信息，请看 加载默认配置 部分。
+              
+              加载默认的 Spark 配置，这种方式可以消除某些标记到 spark-submit 的必要性。例如，如果 spark.master 属性被设置了，您可以在 spark-submit 中安全的省略。一般情况下，明确设置在 SparkConf 上的配置值的优先级最高，然后是传递给 spark-submit 的值，最后才是 default value（默认文件）中的值。
+              
+              如果您不是很清楚其中的配置设置来自哪里，您可以通过使用 --verbose 选项来运行 spark-submit 打印出细粒度的调试信息
+              
+              更多内容可参考文档：提交应用 ，Spark-Submit 参数设置说明和考虑
+              
+              配置参数优先级问题
+              sparkConf中配置的参数优先级最高，其次是spark-submit脚本中，最后是默认属性文件（spark-defaults.conf）中的配置参数
+              
+              默认情况下，spark-submit也会从spark-defaults.conf中读取配置
+          
+          reduceByKey(func, numPartitions=None)
+              也就是，reduceByKey用于对每个key对应的多个value进行merge操作，最重要的是它能够在本地先进行merge操作，并且merge操作可以通过函数自定义。
+          groupByKey(numPartitions=None)
+              也就是，groupByKey也是对每个key进行操作，但只生成一个sequence。需要特别注意“Note”中的话，它告诉我们：如果需要对sequence进行
+              aggregation操作（注意，groupByKey本身不能自定义操作函数），那么，选择reduceByKey/aggregateByKey更好。这是因为groupByKey
+              不能自定义函数，我们需要先用groupByKey生成RDD，然后才能对此RDD通过map进行自定义函数操作。
+      
+          Spark on Yarn模式下的不同之处
+              之前提到过on Yarn有yarn-client和yarn-cluster两种模式，在spark-submit脚本中通过--master、--deploy-mode来区分以哪种方式运行 【具体可见：LearningSpark(2)spark-submit可选参数.md】
+              其中，官方文档中所提及--deploy-mode 指定部署模式，是在 worker 节点（cluster）上还是在本地作为一个外部的客户端（client）部署您的 driver（默认 : client），这和接下来所提及的内容有关
+              因为是运行在Yarn集群上，所有没有什么Master、Worker节点，取而代之是ResourceManager、NodeManager（下文会以RM、NM代替）
+              
+              yarn-cluster运行模式
+                  首先spark-submit提交Application后会向RM发送请求，请求启动ApplicationMaster（同standalone模式下的Master，但同时该节点也会运行Drive进程【这里和yarn-client有区别】）。RM就会分配container在某个NM上启动ApplicationMaster
+                  要执行task就得有Executor，所以ApplicationMaster要向RM申请container来启动Executor。RM分配一些container（就是一些NM节点）给ApplicationMaster用来启动Executor，ApplicationMaster就会连接这些NM（这里NM就如同Worker）。NM启动Executor后向ApplicationMaster注册
+              
+              yarn-client运行模式
+                  如上所提的，这种模式的不同在于Driver是部署在本地提交的那台机器上的。过程大致如yarn-cluster，不同在于ApplicationMaster实际上是ExecutorLauncher，而申请到的NodeManager所启动的Executor是要向本地的Driver注册的，而不是向ApplicationMaster注册
+    
+###结束
+
 
     spark背景
         什么是spark
