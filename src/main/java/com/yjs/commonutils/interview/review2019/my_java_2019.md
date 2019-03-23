@@ -65,6 +65,13 @@
             //检测到桶结点是 ForwardingNode 类型，协助扩容
             //桶结点是普通的结点，锁住该桶头结点并试图在该链表的尾部添加一个节点
             
+    8.JDK8 ConcurrentHashMap的死锁bug
+        https://blog.csdn.net/lx1848/article/details/81256443
+        为了避免这个问题，在JDK1.8中使用ConcurrentHashMap时，不要在computeIfAbsent的lambda函数中再去执行更新其它节点value的操作。
+        
+
+        
+            
         
 ###结束
 
@@ -990,7 +997,7 @@
     0.多线程特点
         1.可见性
         2.原子性
-        3.可见性
+        3.顺序性
     1.线程的状态
         new -> runable -> running -> Blocked -> Dead
     2.如何停止一个线程
@@ -9379,7 +9386,24 @@
               权重调节是动态配置的子功能，主要作用是改变服务端的权重，更大的权重会有更大的几率被客户端选中作为服务提供者，
               从而达到流量分配的目的
     
-    
+    6.dubbo为什么要分两个线程池
+        dubbo 线程池
+            在dubbo调用过程中被调用方有两个线程池：io线程池，业务线程池。
+        
+        这也是dubbo调优的点。
+        
+        配置信息：
+            <dubbo:protocol name="dubbo" dispatcher="all" threadpool="fixed" threads="100" />
+            Dispatcher
+                all 所有消息都派发到线程池，包括请求，响应，连接事件，断开事件，心跳等。
+                direct 所有消息都不派发到线程池，全部在 IO 线程上直接执行。
+                message 只有请求响应消息派发到线程池，其它连接断开事件，心跳等消息，直接在 IO 线程上执行。
+                execution 只请求消息派发到线程池，不含响应，响应和其它连接断开事件，心跳等消息，直接在 IO 线程上执行。
+                connection 在 IO 线程上，将连接断开事件放入队列，有序逐个执行，其它消息派发到线程池。
+         
+        
+        ThreadPool
+            fixed 固定大小线程池，启动时建立线程，不关闭，一直持有。(缺省)
     
 ###结束
 
@@ -9740,7 +9764,42 @@
 ##netty
 
 ###目录
-
+    1. netty为什么要分bossGroup和worKGroup?
+        因为底层调用了操作系统的epoll(eventPoll),一个线程就可以监听一个端口,而且select()是阻塞的,没有必要每个
+        workGroup都去监听,而且多个线程会重复,workGroup应该专注于处理io和编解码
+        
+    2. netty中为什么要把io线程池和业务处理线程池分开?
+        https://blog.csdn.net/x5fnncxzq4/article/details/82977562
+            1、充分利用多核的并行处理能力
+            2、故障隔离
+                1）某类业务处理较慢，阻塞I/O线程
+                2）即便是同类业务，如果使用同一个I/O线程同时处理业务逻辑和I/O读写，如果请求消息的业务逻辑处理较慢，同样会导致响应消息无法及时发送出去。
+            3、可维护性：I/O线程和业务线程分离之后，双方职责单一，有利于代码维护和问题定位。
+            4、资源代价：NioEventLoopGroup的创建并不是廉价的，它会聚合Selector，Selector本身就会消耗句柄资源。
+            5、线程切换的代价：如果不是追求极致的性能，线程切换只要不过于频繁，它的代价还是可以接受的。
+            
+    3.NIO的epoll空轮询bug
+        Selector BUG出现的原因
+            若Selector的轮询结果为空，也没有wakeup或新消息处理，则发生空轮询，CPU使用率100%，
+        
+        Netty的解决办法
+            1.对Selector的select操作周期进行统计，每完成一次空的select操作进行一次计数，
+            2.若在某个周期内连续发生N次空轮询，则触发了epoll死循环bug。
+            3.重建Selector，判断是否是其他线程发起的重建请求，若不是则将原SocketChannel从旧的Selector上去除注册，重新注册到新的
+                Selector上，并将原来的Selector关闭。
+    
+    4.reator线程模型
+        https://www.jianshu.com/p/12b736dcb71e  (必读)
+        主从Reactor线程模型的特点是：
+            服务端用于接收客户端连接的不再是一个单独的NIO线程，而是一个独立的NIO的线程池。Acceptor接收到客户端TCP连接请求并处理完成后
+            （可能包含接入认证），再将新创建的SocketChannel注册到IO线程池（sub reactor）的某个IO处理线程上并处理编解码和读写工作。
+            Acceptor线程池仅负责客户端的连接与认证，一旦链路连接成功，就将链路注册到后端的sub Reactor的IO线程池中。利用主从Reactor
+            模型可以解决服务端监听线程无法有效处理所有客户连接的性能不足问题，这也是netty推荐使用的线程模型。
+            
+        netty的线程模型是可以通过设置启动类的参数来配置的，设置不同的启动参数，netty支持Reactor单线程模型、多线程模型和主从Reactor多线程模型。 
+        
+        
+    
 ###结束
     https://juejin.im/post/5a228cc15188254cc067aef8 (必看)
     
