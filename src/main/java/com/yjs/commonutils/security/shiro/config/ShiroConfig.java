@@ -1,4 +1,4 @@
-package com.yjs.commonutils.shiro.config;
+package com.yjs.commonutils.security.shiro.config;
 
 import org.apache.shiro.cache.CacheManager;
 import org.apache.shiro.session.mgt.SessionManager;
