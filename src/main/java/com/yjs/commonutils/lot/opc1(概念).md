@@ -176,6 +176,205 @@
         
         
         
+##资料
+    OPCUA标准java实现 Milo库
+    https://blog.csdn.net/q932104843/article/details/86664236
+    
+    X.509是一种非常通用的证书格式。所有的证书都符合ITU-T X.509国际标准，因此(理论上)为一种应用创建的证书可以用于任何其他符合X.509标准的应用。
+    
+    
+    
+##UA代码流程
+    14:56:37.059 [main] INFO  o.e.m.opcua.sdk.server.OpcUaServer - Eclipse Milo OPC UA Stack version: 0.2.0
+    14:56:37.072 [main] INFO  o.e.m.opcua.sdk.server.OpcUaServer - Eclipse Milo OPC UA Server SDK version: 0.2.0
+    14:56:39.982 [main] INFO  o.e.m.o.s.s.n.OpcUaNamespace - Loaded nodes in 1859ms.
+    14:56:40.468 [main] INFO  o.e.m.o.sdk.server.NamespaceManager - added namespace index=0, uri=http://opcfoundation.org/UA/
+    14:56:40.489 [main] INFO  o.e.m.o.sdk.server.NamespaceManager - registered and added namespace index=1, uri=urn:hurence:opc:test-server:79ea1ee4-9a41-4990-9a47-e74acf0469f4
+    14:56:40.512 [main] INFO  o.e.m.opcua.sdk.server.OpcUaServer - Binding endpoint opc.tcp://genuine.microsoft.com:51356/test to 127.0.0.1 [None/None]
+    14:56:40.516 [main] INFO  o.e.m.opcua.sdk.server.OpcUaServer - Binding endpoint opc.tcp://genuine.microsoft.com:51356/test to 127.0.0.1 [Basic128Rsa15/SignAndEncrypt]
+    14:56:40.516 [main] INFO  o.e.m.opcua.sdk.server.OpcUaServer - Binding endpoint opc.tcp://genuine.microsoft.com:51356/test to 127.0.0.1 [Basic256/SignAndEncrypt]
+    14:56:40.517 [main] INFO  o.e.m.opcua.sdk.server.OpcUaServer - Binding endpoint opc.tcp://genuine.microsoft.com:51356/test to 127.0.0.1 [Basic256Sha256/SignAndEncrypt]
+    14:56:40.518 [main] INFO  o.e.m.opcua.sdk.server.OpcUaServer - Binding endpoint opc.tcp://genuine.microsoft.com:51356/test to 127.0.0.1 [Aes128_Sha256_RsaOaep/SignAndEncrypt]
+    14:56:40.518 [main] INFO  o.e.m.opcua.sdk.server.OpcUaServer - Binding endpoint opc.tcp://genuine.microsoft.com:51356/test to 127.0.0.1 [Aes256_Sha256_RsaPss/SignAndEncrypt]
+    14:56:40.520 [main] INFO  o.e.m.opcua.sdk.server.OpcUaServer - Binding endpoint opc.tcp://127.0.0.1:51356/test to 127.0.0.1 [None/None]
+    14:56:40.521 [main] INFO  o.e.m.opcua.sdk.server.OpcUaServer - Binding endpoint opc.tcp://127.0.0.1:51356/test to 127.0.0.1 [Basic128Rsa15/SignAndEncrypt]
+    14:56:40.521 [main] INFO  o.e.m.opcua.sdk.server.OpcUaServer - Binding endpoint opc.tcp://127.0.0.1:51356/test to 127.0.0.1 [Basic256/SignAndEncrypt]
+    14:56:40.521 [main] INFO  o.e.m.opcua.sdk.server.OpcUaServer - Binding endpoint opc.tcp://127.0.0.1:51356/test to 127.0.0.1 [Basic256Sha256/SignAndEncrypt]
+    14:56:40.521 [main] INFO  o.e.m.opcua.sdk.server.OpcUaServer - Binding endpoint opc.tcp://127.0.0.1:51356/test to 127.0.0.1 [Aes128_Sha256_RsaOaep/SignAndEncrypt]
+    14:56:40.521 [main] INFO  o.e.m.opcua.sdk.server.OpcUaServer - Binding endpoint opc.tcp://127.0.0.1:51356/test to 127.0.0.1 [Aes256_Sha256_RsaPss/SignAndEncrypt]
+    14:56:40.646 [main] INFO  o.e.m.o.sdk.server.NamespaceManager - registered and added namespace index=2, uri=urn:test:namespace
+    14:56:40.646 [main] INFO  com.hurence.opc.ua.TestOpcServer - Created OPC-UA server running on opc.tcp://localhost/127.0.0.1:51356
+    14:56:41.076 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://genuine.microsoft.com:51356/test bound to 127.0.0.1:51356 [None/None]
+    14:56:41.080 [main] DEBUG o.e.m.o.s.s.t.SocketServers$SocketServer - Added server at path: "test/discovery"
+    14:56:41.080 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://genuine.microsoft.com:51356/test bound to 127.0.0.1:51356 [Basic128Rsa15/SignAndEncrypt]
+    14:56:41.081 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://genuine.microsoft.com:51356/test bound to 127.0.0.1:51356 [Basic256/SignAndEncrypt]
+    14:56:41.081 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://genuine.microsoft.com:51356/test bound to 127.0.0.1:51356 [Basic256Sha256/SignAndEncrypt]
+    14:56:41.082 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://genuine.microsoft.com:51356/test bound to 127.0.0.1:51356 [Aes128_Sha256_RsaOaep/SignAndEncrypt]
+    14:56:41.082 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://genuine.microsoft.com:51356/test bound to 127.0.0.1:51356 [Aes256_Sha256_RsaPss/SignAndEncrypt]
+    14:56:41.082 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://genuine.microsoft.com:51356/test/discovery bound to 127.0.0.1:51356 [None/None]
+    14:56:41.083 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://127.0.0.1:51356/test bound to 127.0.0.1:51356 [None/None]
+    14:56:41.083 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://127.0.0.1:51356/test bound to 127.0.0.1:51356 [Basic128Rsa15/SignAndEncrypt]
+    14:56:41.086 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://127.0.0.1:51356/test bound to 127.0.0.1:51356 [Basic256/SignAndEncrypt]
+    14:56:41.091 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://127.0.0.1:51356/test bound to 127.0.0.1:51356 [Basic256Sha256/SignAndEncrypt]
+    14:56:41.092 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://127.0.0.1:51356/test bound to 127.0.0.1:51356 [Aes128_Sha256_RsaOaep/SignAndEncrypt]
+    14:56:41.092 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://127.0.0.1:51356/test bound to 127.0.0.1:51356 [Aes256_Sha256_RsaPss/SignAndEncrypt]
+    14:56:41.092 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://127.0.0.1:51356/test/discovery bound to 127.0.0.1:51356 [None/None]
+    14:56:41.096 [main] DEBUG o.e.m.o.s.s.t.SocketServers$SocketServer - Added server at path: "test"
+    14:56:41.101 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://genuine.microsoft.com:51356/test bound to 127.0.0.1:51356 [None/None]
+    14:56:41.103 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://genuine.microsoft.com:51356/test bound to 127.0.0.1:51356 [Basic128Rsa15/SignAndEncrypt]
+    14:56:41.103 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://genuine.microsoft.com:51356/test bound to 127.0.0.1:51356 [Basic256/SignAndEncrypt]
+    14:56:41.103 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://genuine.microsoft.com:51356/test bound to 127.0.0.1:51356 [Basic256Sha256/SignAndEncrypt]
+    14:56:41.104 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://genuine.microsoft.com:51356/test bound to 127.0.0.1:51356 [Aes128_Sha256_RsaOaep/SignAndEncrypt]
+    14:56:41.104 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://genuine.microsoft.com:51356/test bound to 127.0.0.1:51356 [Aes256_Sha256_RsaPss/SignAndEncrypt]
+    14:56:41.104 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://127.0.0.1:51356/test bound to 127.0.0.1:51356 [None/None]
+    14:56:41.104 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://127.0.0.1:51356/test bound to 127.0.0.1:51356 [Basic128Rsa15/SignAndEncrypt]
+    14:56:41.104 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://127.0.0.1:51356/test bound to 127.0.0.1:51356 [Basic256/SignAndEncrypt]
+    14:56:41.105 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://127.0.0.1:51356/test bound to 127.0.0.1:51356 [Basic256Sha256/SignAndEncrypt]
+    14:56:41.106 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://127.0.0.1:51356/test bound to 127.0.0.1:51356 [Aes128_Sha256_RsaOaep/SignAndEncrypt]
+    14:56:41.106 [main] INFO  o.e.m.o.s.s.tcp.UaTcpStackServer - opc.tcp://127.0.0.1:51356/test bound to 127.0.0.1:51356 [Aes256_Sha256_RsaPss/SignAndEncrypt]
+    14:56:41.828 [main] INFO  com.hurence.opc.ua.OpcUaTemplate - Discovering OCP-UA endpoints from opc.tcp://genuine.microsoft.com:51356/test
+    14:56:41.863 [main] DEBUG o.e.m.o.s.c.ClientChannelManager - connect(), currentState=NotConnected
+    14:56:41.885 [main] DEBUG o.e.m.o.s.c.ClientChannelManager - connect() while NotConnected
+    java.lang.Exception: null
+    	at org.eclipse.milo.opcua.stack.client.ClientChannelManager.connect(ClientChannelManager.java:67) [stack-client-0.2.0.jar:0.2.0]
+    	at org.eclipse.milo.opcua.stack.client.UaTcpStackClient.connect(UaTcpStackClient.java:127) [stack-client-0.2.0.jar:0.2.0]
+    	at org.eclipse.milo.opcua.stack.client.UaTcpStackClient.getEndpoints(UaTcpStackClient.java:568) [stack-client-0.2.0.jar:0.2.0]
+    	at com.hurence.opc.ua.OpcUaTemplate.discoverEndpoints(OpcUaTemplate.java:217) [classes/:na]
+    	at com.hurence.opc.ua.OpcUaTemplate.clientConfig(OpcUaTemplate.java:151) [classes/:na]
+    	at com.hurence.opc.ua.OpcUaTemplate.doConnect(OpcUaTemplate.java:279) [classes/:na]
+    	at com.hurence.opc.ua.OpcUaTemplate.lambda$connect$3(OpcUaTemplate.java:261) [classes/:na]
+    	at io.reactivex.internal.operators.completable.CompletableFromAction.subscribeActual(CompletableFromAction.java:34) ~[rxjava-2.2.4.jar:na]
+    	at io.reactivex.Completable.subscribe(Completable.java:2255) ~[rxjava-2.2.4.jar:na]
+    	at io.reactivex.internal.operators.completable.CompletableConcatArray$ConcatInnerObserver.next(CompletableConcatArray.java:89) ~[rxjava-2.2.4.jar:na]
+    	at io.reactivex.internal.operators.completable.CompletableConcatArray.subscribeActual(CompletableConcatArray.java:33) ~[rxjava-2.2.4.jar:na]
+    	at io.reactivex.Completable.subscribe(Completable.java:2255) ~[rxjava-2.2.4.jar:na]
+    	at io.reactivex.internal.operators.single.SingleDelayWithCompletable.subscribeActual(SingleDelayWithCompletable.java:36) ~[rxjava-2.2.4.jar:na]
+    	at io.reactivex.Single.subscribe(Single.java:3495) ~[rxjava-2.2.4.jar:na]
+    	at io.reactivex.internal.operators.completable.CompletableFromSingle.subscribeActual(CompletableFromSingle.java:29) ~[rxjava-2.2.4.jar:na]
+    	at io.reactivex.Completable.subscribe(Completable.java:2255) ~[rxjava-2.2.4.jar:na]
+    	at io.reactivex.Completable.blockingAwait(Completable.java:1186) ~[rxjava-2.2.4.jar:na]
+    	at com.hurence.opc.ua.OpcUaTemplateTest.connectionUserPasswordSuccessTest(OpcUaTemplateTest.java:111) ~[test-classes/:na]
+    	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[na:1.8.0_144]
+    	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62) ~[na:1.8.0_144]
+    	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[na:1.8.0_144]
+    	at java.lang.reflect.Method.invoke(Method.java:498) ~[na:1.8.0_144]
+    	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:50) ~[junit-4.12.jar:4.12]
+    	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12) ~[junit-4.12.jar:4.12]
+    	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:47) ~[junit-4.12.jar:4.12]
+    	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17) ~[junit-4.12.jar:4.12]
+    	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:325) ~[junit-4.12.jar:4.12]
+    	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:78) ~[junit-4.12.jar:4.12]
+    	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:57) ~[junit-4.12.jar:4.12]
+    	at org.junit.runners.ParentRunner$3.run(ParentRunner.java:290) ~[junit-4.12.jar:4.12]
+    	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:71) ~[junit-4.12.jar:4.12]
+    	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:288) ~[junit-4.12.jar:4.12]
+    	at org.junit.runners.ParentRunner.access$000(ParentRunner.java:58) ~[junit-4.12.jar:4.12]
+    	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:268) ~[junit-4.12.jar:4.12]
+    	at org.junit.internal.runners.statements.RunBefores.evaluate(RunBefores.java:26) ~[junit-4.12.jar:4.12]
+    	at org.junit.internal.runners.statements.RunAfters.evaluate(RunAfters.java:27) ~[junit-4.12.jar:4.12]
+    	at org.junit.runners.ParentRunner.run(ParentRunner.java:363) ~[junit-4.12.jar:4.12]
+    	at org.junit.runner.JUnitCore.run(JUnitCore.java:137) ~[junit-4.12.jar:4.12]
+    	at com.intellij.junit4.JUnit4IdeaTestRunner.startRunnerWithArgs(JUnit4IdeaTestRunner.java:68) ~[junit-rt.jar:na]
+    	at com.intellij.rt.execution.junit.IdeaTestRunner$Repeater.startRunnerWithArgs(IdeaTestRunner.java:47) ~[junit-rt.jar:na]
+    	at com.intellij.rt.execution.junit.JUnitStarter.prepareStreamsAndStart(JUnitStarter.java:242) ~[junit-rt.jar:na]
+    	at com.intellij.rt.execution.junit.JUnitStarter.main(JUnitStarter.java:70) ~[junit-rt.jar:na]
+    14:56:43.327 [main] WARN  com.hurence.opc.ua.OpcUaTemplate - Received 6 endpoint descriptions from opc.tcp://genuine.microsoft.com:51356/test
+    14:56:43.750 [main] INFO  com.hurence.opc.ua.OpcUaTemplate - Connecting to OPC-UA endpoint
+    Server: ApplicationDescription{ApplicationUri=urn:hurence:opc:test-server:79ea1ee4-9a41-4990-9a47-e74acf0469f4, ProductUri=urn:hurence:opc:test-server, ApplicationName=LocalizedText{text=Hurence OPC UA Test Server, locale=en}, ApplicationType=Server, GatewayServerUri=null, DiscoveryProfileUri=null, DiscoveryUrls=[opc.tcp://genuine.microsoft.com:51356/test]}
+    Url: opc.tcp://genuine.microsoft.com:51356/test
+    Security policy: http://opcfoundation.org/UA/SecurityPolicy#None
+    Server identity: [
+    [
+      Version: V3
+      Subject: C=FR, ST=, L=Lyon, OU=dev, O=Hurence, CN=Hurence test
+      Signature Algorithm: SHA256withRSA, OID = 1.2.840.113549.1.1.11
+    
+      Key:  Sun RSA public key, 2048 bits
+      modulus: 19702820052628541184822174161466051865214469911650300697380573025881852602918401839732645926052708764885841891116415883267858328254831015596211805766271982304176305280294913352565903195173595614009902127643814249022626030998471371132470925325653458988319412729615506521198659036867573615922083779404361501972943964866898002286646555251463115682078841509387273125981711718501686268893252811806761826116534325762249752595150759347564722469521067725101462873673462340097053956993084726792037551495045079574657367189019834591736688232785809955527924584407970300056484297345770425335866127851743283539276724501794766806253
+      public exponent: 65537
+      Validity: [From: Fri Apr 26 00:00:00 CST 2019,
+                   To: Tue Apr 26 00:00:00 CST 2022]
+      Issuer: C=FR, ST=, L=Lyon, OU=dev, O=Hurence, CN=Hurence test
+      SerialNumber: [    016a586e 7d07]
+    
+    Certificate Extensions: 6
+    [1]: ObjectId: 2.5.29.35 Criticality=false
+    AuthorityKeyIdentifier [
+    KeyIdentifier [
+    0000: 0E F5 2C CB F3 72 EC 25   C3 41 D8 75 54 ED DD 54  ..,..r.%.A.uT..T
+    0010: D1 5C 23 7C                                        .\#.
+    ]
+    ]
+    
+    [2]: ObjectId: 2.5.29.19 Criticality=false
+    BasicConstraints:[
+      CA:true
+      PathLen:2147483647
+    ]
+    
+    [3]: ObjectId: 2.5.29.37 Criticality=false
+    ExtendedKeyUsages [
+      clientAuth
+      serverAuth
+    ]
+    
+    [4]: ObjectId: 2.5.29.15 Criticality=false
+    KeyUsage [
+      DigitalSignature
+      Non_repudiation
+      Key_Encipherment
+      Data_Encipherment
+      Key_Agreement
+      Key_CertSign
+    ]
+    
+    [5]: ObjectId: 2.5.29.17 Criticality=false
+    SubjectAlternativeName [
+      URIName: urn:hurence:opc:test-server:79ea1ee4-9a41-4990-9a47-e74acf0469f4
+    ]
+    
+    [6]: ObjectId: 2.5.29.14 Criticality=false
+    SubjectKeyIdentifier [
+    KeyIdentifier [
+    0000: 0E F5 2C CB F3 72 EC 25   C3 41 D8 75 54 ED DD 54  ..,..r.%.A.uT..T
+    0010: D1 5C 23 7C                                        .\#.
+    ]
+    ]
+    
+    ]
+      Algorithm: [SHA256withRSA]
+      Signature:
+    0000: 65 1D 7B 13 DF 75 5B 73   12 FB A1 88 BB D9 D8 B8  e....u[s........
+    0010: 66 89 AC 7F 20 7A 50 9B   75 4C 6C E2 41 18 82 CF  f... zP.uLl.A...
+    0020: AE 9A E4 0F 1F AA 92 47   18 C8 12 ED 8E A5 90 75  .......G.......u
+    0030: 76 21 3E 06 6B 25 4A 54   3B AA 49 3F DE 0D 16 9A  v!>.k%JT;.I?....
+    0040: D6 B3 DD FF FA 36 79 F9   BB 20 7A B0 9D 00 A8 21  .....6y.. z....!
+    0050: 7D 49 C8 7C 2B B6 15 AC   23 AC A9 D2 32 BB CC 75  .I..+...#...2..u
+    0060: 59 9C 29 1A 61 00 0E 7B   31 3E 98 7D 94 2C 06 D4  Y.).a...1>...,..
+    0070: 42 85 85 7A 04 83 9E CD   D1 49 90 20 D8 53 CE B5  B..z.....I. .S..
+    0080: 4E 95 F1 28 2C 33 0C 69   E0 C1 B4 E6 07 1A 3C EB  N..(,3.i......<.
+    0090: 73 44 13 AF 8E CD 1C A9   A5 E2 FA 24 30 87 E5 E2  sD.........$0...
+    00A0: E3 C0 AD DD 12 41 5E 26   73 61 DC 04 2D 05 38 80  .....A^&sa..-.8.
+    00B0: 7A B8 14 06 EA 04 84 82   5C 9B D2 B1 15 2E A3 07  z.......\.......
+    00C0: FF EF ED 3A 83 3A 91 C5   3F 10 C7 CD 07 D2 03 2D  ...:.:..?......-
+    00D0: 6D 6A 03 3F A7 98 B1 AA   FA 95 68 EA B2 62 89 3C  mj.?......h..b.<
+    00E0: 45 09 01 52 77 77 23 BA   61 34 75 D5 01 08 9E 40  E..Rww#.a4u....@
+    00F0: 24 08 0D 44 37 13 D7 05   2C 8B AC A9 5E E0 CC 86  $..D7...,...^...
+    
+    ]
+    14:56:43.908 [main] INFO  o.e.m.opcua.sdk.client.OpcUaClient - Eclipse Milo OPC UA Stack version: 0.2.0
+    14:56:43.908 [main] INFO  o.e.m.opcua.sdk.client.OpcUaClient - Eclipse Milo OPC UA Client SDK version: 0.2.0
+
+    
+    流程
+        1.初始话server
+            1.用户密码验证    UsernameIdentityValidator 
+            2.x509证书验证    X509IdentityValidator
+            3.获取ip和端口
+            4.生产RSA KeyPair         SelfSignedCertificateGenerator.generateRsaKeyPair
+            5.构建OpcUaServerConfig
+            
+        
         
         
         
