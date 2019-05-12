@@ -1,0 +1,3 @@
+1.redis scan2.8以上才支持
+2.kafka消费端重启rebalance
+3.kafka生产端推消息和拉消息不成功,排查发现,分区leader在某个broker上的都不成功,重指派分区leader成功
