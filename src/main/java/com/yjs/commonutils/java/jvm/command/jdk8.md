@@ -3,6 +3,14 @@
 - 统计进程打开的句柄数:ls /proc/16818/fd |wc -l
 - 统计进程打开的线程数:ls /proc/16818/task |wc -l   
 
+- jmc jfr
+    开启JFR记录事件
+        -XX:+UnlockCommercialFeatures –XX:+FlightRecorder
+    开始
+        jcmd pid JFR.start delay=1s duration=300s name=serverRecording filename=./record.jfr settings=profile
+    
+    
+
 - 查看cpu占用率高的线程
     - 查看cpu占用率高的线程：top -Hp 16818    
     - 转换线程id为16进制：printf 0x%x 16819
@@ -231,11 +239,6 @@ Compiled：最近编译方法的数量
 Size：最近编译方法的字节码数量
 Type：最近编译方法的编译类型。
 Method：方法名标识。
---------------------- 
-作者：褚金辉 
-来源：CSDN 
-原文：https://blog.csdn.net/maosijunzi/article/details/46049117?utm_source=copy 
-版权声明：本文为博主原创文章，转载请附上博文链接！
 
 
 ###########################
