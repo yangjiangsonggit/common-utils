@@ -1,4 +1,4 @@
-package com.yjs.commonutils.Utils.file;
+package com.yjs.commonutils.utils.file;
 
 import org.apache.shiro.crypto.hash.Md5Hash;
 import org.apache.tomcat.util.http.fileupload.FileUploadBase.FileSizeLimitExceededException;
